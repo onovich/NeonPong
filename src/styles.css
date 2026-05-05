@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  color-scheme: dark;
+  font-family: 'Press Start 2P', monospace;
+  background: radial-gradient(circle at top, rgba(18, 28, 48, 0.55), transparent 38%), #0d0d12;
+  color: #00ffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  touch-action: none;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(0, 255, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, #121827 0%, #0d0d12 58%, #09090d 100%);
+}
+
+#app {
+  position: relative;
+}
+
+.game-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.ui-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.score-board {
+  display: flex;
+  justify-content: space-around;
+  padding-top: min(5vh, 2.5rem);
+  font-size: clamp(1rem, 3vw, 2rem);
+  text-shadow: 0 0 10px #00ffff;
+}
+
+.score-player {
+  color: #00ffff;
+}
+
+.score-enemy {
+  color: #ff0055;
+  text-shadow: 0 0 10px #ff0055;
+}
+
+.overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(90vw, 34rem);
+  transform: translate(-50%, -50%);
+  padding: clamp(1.4rem, 4vw, 2.4rem);
+  border: 2px solid #00ffff;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(13, 13, 18, 0.92), rgba(13, 13, 18, 0.8));
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.75), inset 0 0 25px rgba(0, 255, 255, 0.08);
+  text-align: center;
+  pointer-events: auto;
+}
+
+.overlay::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border: 1px solid rgba(255, 0, 85, 0.35);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.overlay-title {
+  margin: 0 0 1rem;
+  font-size: clamp(1.1rem, 3vw, 1.7rem);
+  color: #ffffff;
+  text-shadow: 2px 2px 0 #ff0055, -2px -2px 0 #00ffff;
+}
+
+.overlay-subtitle {
+  margin: 0 0 1.8rem;
+  font-size: clamp(0.65rem, 1.6vw, 0.82rem);
+  line-height: 1.8;
+}
+
+.overlay-button {
+  border: 2px solid #00ffff;
+  background: transparent;
+  color: #00ffff;
+  padding: 0.9rem 1.4rem;
+  font: inherit;
+  font-size: clamp(0.8rem, 2vw, 1rem);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.overlay-button:hover,
+.overlay-button:active {
+  background: #00ffff;
+  color: #0d0d12;
+  box-shadow: 0 0 15px #00ffff;
+  transform: translateY(-2px);
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    width: min(92vw, 28rem);
+  }
+
+  .overlay-subtitle {
+    line-height: 1.7;
+  }
+}

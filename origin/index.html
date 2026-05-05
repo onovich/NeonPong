@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>复古伪3D乒乓球</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0d0d12;
+            overflow: hidden;
+            font-family: 'Press Start 2P', monospace;
+            color: #00ffff;
+            touch-action: none; /* 防止移动端滑动时触发默认滚动 */
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* 让点击事件穿透到canvas */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .score-board {
+            display: flex;
+            justify-content: space-around;
+            padding-top: 5vh;
+            font-size: 2rem;
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        #score-player { color: #00ffff; }
+        #score-enemy { color: #ff0055; text-shadow: 0 0 10px #ff0055; }
+
+        .overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(13, 13, 18, 0.8);
+            padding: 2rem;
+            border: 2px solid #00ffff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px #00ffff;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #fff;
+            text-shadow: 2px 2px 0px #ff0055, -2px -2px 0px #00ffff;
+        }
+
+        p {
+            font-size: 0.8rem;
+            line-height: 1.5;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            background-color: transparent;
+            color: #00ffff;
+            border: 2px solid #00ffff;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover, button:active {
+            background-color: #00ffff;
+            color: #0d0d12;
+            box-shadow: 0 0 15px #00ffff;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 600px) {
+            .score-board { font-size: 1.2rem; }
+            h1 { font-size: 1.2rem; }
+            p { font-size: 0.6rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="score-board">
+            <div id="score-enemy">0</div>
+            <div id="score-player">0</div>
+        </div>
+
+        <div id="startScreen" class="overlay">
+            <h1>NEON PONG 3D</h1>
+            <p>移动鼠标 或 触摸滑动<br>控制底部球拍。<br>将球击回对手底线得分。</p>
+            <button id="startBtn">开始游戏</button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('startScreen');
+    const startBtn = document.getElementById('startBtn');
+    const scorePlayerEl = document.getElementById('score-player');
+    const scoreEnemyEl = document.getElementById('score-enemy');
+
+    // 游戏配置
+    const config = {
+        tableColor: 'rgba(0, 255, 255, 0.2)',
+        lineColor: '#00ffff',
+        ballColor: '#ff0055',
+        playerColor: '#00ffff',
+        enemyColor: '#ff0055',
+        tableWidthBottom: 0.8, // 占屏幕宽度的比例
+        tableWidthTop: 0.3,
+        tableYBottom: 0.85,    // 占屏幕高度的比例
+        tableYTop: 0.35,
+        paddleWidth: 0.25,     // 相对球桌宽度的比例
+        paddleHeight: 0.05,    // 相对高度比例
+        ballRadius: 15,        // 基础半径
+        baseSpeedZ: 1.2,
+        speedMultiplier: 1.05, // 每次击球加速
+        gravity: 2.5,
+        bounceDamping: 0.8,
+        maxScore: 5
+    };
+
+    let w, h;
+    let gameState = 'start'; // start, playing, gameover
+    let lastTime = 0;
+    
+    // 逻辑坐标系：
+    // x: -1 (左) 到 1 (右)
+    // z: 0 (玩家/底边) 到 1 (对手/顶边)
+    // y: 0 (桌面) 到 正数 (空中)
+
+    const state = {
+        scorePlayer: 0,
+        scoreEnemy: 0,
+        mouseX: 0, // 归一化 -1 到 1
+        player: { x: 0, w: config.paddleWidth },
+        enemy: { x: 0, w: config.paddleWidth, targetX: 0 },
+        ball: {
+            x: 0, y: 0.5, z: 0.5,
+            vx: 0, vy: 0, vz: 0,
+            trail: [],
+            maxTrail: 15
+        }
+    };
+
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // 伪3D投影核心函数
+    // 将逻辑坐标 (x, y, z) 转换为屏幕坐标 (sx, sy) 和缩放比例 scale
+    function project(x, y, z) {
+        // 限制 z 避免计算超出范围
+        const cz = Math.max(0, Math.min(1, z));
+        
+        // 计算当前深度的屏幕宽度
+        const bottomW = w * config.tableWidthBottom;
+        const topW = w * config.tableWidthTop;
+        const currentW = bottomW + (topW - bottomW) * cz;
+        
+        // 计算当前深度的屏幕Y基础位置 (桌面位置)
+        const bottomY = h * config.tableYBottom;
+        const topY = h * config.tableYTop;
+        const baseSy = bottomY + (topY - bottomY) * cz;
+        
+        // 缩放比例，近大远小
+        const scale = currentW / bottomW;
+        
+        // x 投影
+        const sx = w / 2 + x * (currentW / 2);
+        
+        // y 投影 (高度)
+        // 高度也需要受到透视缩放影响，并且是以桌面(baseSy)为基准向上减去
+        const heightScale = h * 0.4; // 高度乘数，调整视觉感
+        const sy = baseSy - (y * heightScale * scale);
+
+        return { sx, sy, baseSy, scale };
+    }
+
+    // 辅助绘图函数：发光线条
+    function drawLine(x1, y1, x2, y2, color, lineWidth, blur = 5) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.shadowBlur = blur;
+        ctx.shadowColor = color;
+        ctx.stroke();
+        ctx.shadowBlur = 0; // reset
+    }
+
+    // 绘制游戏场景
+    function draw() {
+        // 清理背景并留下轻微残影
+        ctx.fillStyle = 'rgba(13, 13, 18, 0.4)';
+        ctx.fillRect(0, 0, w, h);
+
+        // --- 1. 绘制球桌 ---
+        const pTL = project(-1, 0, 1); // Top Left
+        const pTR = project(1, 0, 1);  // Top Right
+        const pBL = project(-1, 0, 0); // Bottom Left
+        const pBR = project(1, 0, 0);  // Bottom Right
+
+        // 桌面填充
+        ctx.beginPath();
+        ctx.moveTo(pTL.sx, pTL.sy);
+        ctx.lineTo(pTR.sx, pTR.sy);
+        ctx.lineTo(pBR.sx, pBR.sy);
+        ctx.lineTo(pBL.sx, pBL.sy);
+        ctx.closePath();
+        
+        // 创建渐变让远处变暗
+        let grad = ctx.createLinearGradient(0, pBR.sy, 0, pTL.sy);
+        grad.addColorStop(0, 'rgba(0, 255, 255, 0.15)');
+        grad.addColorStop(1, 'rgba(0, 255, 255, 0.02)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // 边框发光线
+        ctx.lineJoin = "round";
+        drawLine(pBL.sx, pBL.sy, pTL.sx, pTL.sy, config.lineColor, 3, 10); // 左边
+        drawLine(pBR.sx, pBR.sy, pTR.sx, pTR.sy, config.lineColor, 3, 10); // 右边
+        drawLine(pTL.sx, pTL.sy, pTR.sx, pTR.sy, config.lineColor, 2, 5);  // 顶边
+        drawLine(pBL.sx, pBL.sy, pBR.sx, pBR.sy, config.lineColor, 4, 15); // 底边
+
+        // 中心线和球网线
+        const pNetL = project(-1, 0, 0.5);
+        const pNetR = project(1, 0, 0.5);
+        const pCenterB = project(0, 0, 0);
+        const pCenterT = project(0, 0, 1);
+        
+        // 中心虚线
+        ctx.setLineDash([10, 15]);
+        drawLine(pCenterB.sx, pCenterB.sy, pCenterT.sx, pCenterT.sy, 'rgba(0,255,255,0.5)', 2, 0);
+        ctx.setLineDash([]);
+        
+        // 球网
+        drawLine(pNetL.sx, pNetL.sy, pNetR.sx, pNetR.sy, 'rgba(255,255,255,0.3)', 2, 5);
+        const pNetTopL = project(-1, 0.15, 0.5);
+        const pNetTopR = project(1, 0.15, 0.5);
+        drawLine(pNetTopL.sx, pNetTopL.sy, pNetTopR.sx, pNetTopR.sy, 'rgba(255,255,255,0.6)', 1, 5);
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.beginPath();
+        ctx.moveTo(pNetL.sx, pNetL.sy); ctx.lineTo(pNetR.sx, pNetR.sy);
+        ctx.lineTo(pNetTopR.sx, pNetTopR.sy); ctx.lineTo(pNetTopL.sx, pNetTopL.sy);
+        ctx.fill();
+
+        // --- 2. 绘制对手球拍 (z=1) ---
+        drawPaddle(state.enemy.x, 1, config.enemyColor);
+
+        // --- 3. 绘制球 ---
+        drawBall();
+
+        // --- 4. 绘制玩家球拍 (z=0) ---
+        drawPaddle(state.player.x, 0, config.playerColor);
+    }
+
+    function drawPaddle(x, z, color) {
+        // 为了有厚度感，绘制一个略微有高度的矩形
+        const pLeftBottom = project(x - config.paddleWidth/2, 0, z);
+        const pRightBottom = project(x + config.paddleWidth/2, 0, z);
+        const pLeftTop = project(x - config.paddleWidth/2, config.paddleHeight, z);
+        const pRightTop = project(x + config.paddleWidth/2, config.paddleHeight, z);
+
+        ctx.beginPath();
+        ctx.moveTo(pLeftBottom.sx, pLeftBottom.sy);
+        ctx.lineTo(pRightBottom.sx, pRightBottom.sy);
+        ctx.lineTo(pRightTop.sx, pRightTop.sy);
+        ctx.lineTo(pLeftTop.sx, pLeftTop.sy);
+        ctx.closePath();
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.8)'; // 背板变暗
+        ctx.fill();
+        
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3 * pLeftBottom.scale;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+        // 填充一点半透明发光
+        ctx.fillStyle = color.replace(')', ', 0.3)').replace('rgb', 'rgba'); // 简单的半透明处理
+        if(color.startsWith('#')) {
+             ctx.fillStyle = color + '40'; // hex alpha
+        }
+        ctx.fill();
+    }
+
+    function drawBall() {
+        const b = state.ball;
+        const proj = project(b.x, b.y, b.z);
+        
+        // 绘制桌面投影 (阴影) 增强空间感
+        const shadow = project(b.x, 0, b.z);
+        ctx.beginPath();
+        ctx.ellipse(shadow.sx, shadow.baseSy, config.ballRadius * shadow.scale, (config.ballRadius/3) * shadow.scale, 0, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fill();
+
+        // 绘制尾迹 (残影)
+        for (let i = 0; i < b.trail.length; i++) {
+            const t = b.trail[i];
+            const p = project(t.x, t.y, t.z);
+            const alpha = (i / b.trail.length) * 0.6; // 越老的越透明
+            const radius = config.ballRadius * p.scale * (0.3 + 0.7 * (i / b.trail.length));
+
+            ctx.beginPath();
+            ctx.arc(p.sx, p.sy, radius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 0, 85, ${alpha})`;
+            ctx.fill();
+        }
+
+        // 绘制本体
+        ctx.beginPath();
+        ctx.arc(proj.sx, proj.sy, config.ballRadius * proj.scale, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 20 * proj.scale;
+        ctx.shadowColor = config.ballColor;
+        ctx.fill();
+        
+        // 核心发光点
+        ctx.beginPath();
+        ctx.arc(proj.sx, proj.sy, config.ballRadius * proj.scale * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = config.ballColor;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    // 物理与逻辑更新
+    function update(dt) {
+        if (gameState !== 'playing') return;
+
+        // 玩家控制 (平滑跟随)
+        state.player.x += (state.mouseX - state.player.x) * 15 * dt;
+        // 限制玩家球拍不出界
+        state.player.x = Math.max(-1 + config.paddleWidth/2, Math.min(1 - config.paddleWidth/2, state.player.x));
+
+        // 简易AI控制
+        // 对手尝试匹配球的x坐标，具有一定的延迟和最大速度
+        const aiSpeed = 2.0;
+        let targetX = state.ball.x;
+        // 只有球向它飞去时才积极移动，且增加一点预测
+        if (state.ball.vz > 0) {
+           targetX = state.ball.x + state.ball.vx * (1 - state.ball.z); 
+        } else {
+           targetX = 0; // 回中
+        }
+        targetX = Math.max(-1 + config.paddleWidth/2, Math.min(1 - config.paddleWidth/2, targetX));
+        
+        // 移动AI
+        if (state.enemy.x < targetX) state.enemy.x += aiSpeed * dt;
+        if (state.enemy.x > targetX) state.enemy.x -= aiSpeed * dt;
+
+        // 球物理更新
+        const b = state.ball;
+        
+        // 记录轨迹
+        b.trail.push({x: b.x, y: b.y, z: b.z});
+        if (b.trail.length > b.maxTrail) {
+            b.trail.shift();
+        }
+
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.z += b.vz * dt;
+
+        // 重力影响
+        b.vy -= config.gravity * dt;
+
+        // 桌面反弹
+        if (b.y < 0) {
+            b.y = 0;
+            // 简单的弹性碰撞，动能衰减
+            if (b.vy < 0) {
+                b.vy = -b.vy * config.bounceDamping;
+                // 防止弹跳过小一直贴地
+                if (b.vy < 0.2) b.vy = 0;
+            }
+        }
+
+        // 左右边界反弹
+        if (b.x < -1 || b.x > 1) {
+            b.vx *= -1;
+            b.x = b.x < -1 ? -1 : 1;
+        }
+
+        // --- 碰撞检测与得分逻辑 ---
+
+        // 玩家面 (z接近0)
+        if (b.z <= 0.02 && b.vz < 0) {
+            if (Math.abs(b.x - state.player.x) < config.paddleWidth / 2 + 0.1) { // 稍微给点容错
+                // 击中！
+                hitBall(state.player.x);
+            } else if (b.z < -0.1) {
+                // 漏接，穿过了防线
+                score(false);
+            }
+        }
+
+        // 对手面 (z接近1)
+        if (b.z >= 0.98 && b.vz > 0) {
+            if (Math.abs(b.x - state.enemy.x) < config.paddleWidth / 2 + 0.1) {
+                // AI击中！
+                hitBall(state.enemy.x, true);
+            } else if (b.z > 1.1) {
+                // AI漏接
+                score(true);
+            }
+        }
+    }
+
+    function hitBall(paddleX, isEnemy = false) {
+        const b = state.ball;
+        
+        // 反转Z轴速度并加速
+        b.vz *= -config.speedMultiplier;
+        
+        // 给予一个向上的初速度，产生抛物线
+        b.vy = 1.2 + Math.random() * 0.4;
+        
+        // 根据击球点偏离球拍中心的距离赋予横向速度（切球/旋球效果）
+        const hitOffset = b.x - paddleX;
+        b.vx = hitOffset * 3.5; 
+        
+        // 纠正位置防止卡在球拍里
+        if (isEnemy) {
+            b.z = 0.98;
+            // 限制最大Z速度防止飞出视野太快
+            b.vz = Math.max(b.vz, -config.baseSpeedZ * 3);
+        } else {
+            b.z = 0.02;
+            b.vz = Math.min(b.vz, config.baseSpeedZ * 3);
+        }
+    }
+
+    function score(playerScored) {
+        if (playerScored) {
+            state.scorePlayer++;
+            scorePlayerEl.innerText = state.scorePlayer;
+        } else {
+            state.scoreEnemy++;
+            scoreEnemyEl.innerText = state.scoreEnemy;
+        }
+
+        // 视觉反馈：闪烁
+        canvas.style.opacity = 0.5;
+        setTimeout(() => canvas.style.opacity = 1, 100);
+
+        if (state.scorePlayer >= config.maxScore || state.scoreEnemy >= config.maxScore) {
+            endGame(playerScored);
+        } else {
+            resetBall(playerScored);
+        }
+    }
+
+    function resetBall(serveToPlayer) {
+        state.ball.x = 0;
+        state.ball.y = 1.0; // 从空中落下
+        state.ball.z = 0.5;
+        state.ball.trail = [];
+        
+        // 发球给得分方（这里简化为向谁发）
+        const dir = serveToPlayer ? -1 : 1;
+        state.ball.vz = config.baseSpeedZ * dir;
+        state.ball.vy = 0;
+        state.ball.vx = (Math.random() - 0.5) * 1.5;
+    }
+
+    function initGame() {
+        state.scorePlayer = 0;
+        state.scoreEnemy = 0;
+        scorePlayerEl.innerText = '0';
+        scoreEnemyEl.innerText = '0';
+        resetBall(false);
+        gameState = 'playing';
+        startScreen.classList.add('hidden');
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function endGame(playerWon) {
+        gameState = 'gameover';
+        startScreen.querySelector('h1').innerText = playerWon ? "YOU WIN!" : "YOU LOSE";
+        startScreen.querySelector('h1').style.color = playerWon ? "#00ffff" : "#ff0055";
+        startScreen.querySelector('p').innerText = "点击按钮重新开始";
+        startScreen.classList.remove('hidden');
+    }
+
+    // 主循环
+    function gameLoop(currentTime) {
+        const dt = (currentTime - lastTime) / 1000; // 转换为秒
+        lastTime = currentTime;
+
+        // 限制最大dt防止休眠唤醒后飞走
+        const safeDt = Math.min(dt, 0.05);
+
+        if (gameState === 'playing') {
+            update(safeDt);
+        }
+        
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // 输入处理
+    function handleInput(clientX) {
+        // 将屏幕坐标映射到 -1 到 1 的逻辑范围
+        // 留出一定边距，不需要鼠标滑到屏幕边缘才能移到球桌边缘
+        const normalized = (clientX / w) * 2 - 1; 
+        state.mouseX = normalized * 1.5; // 提高灵敏度
+    }
+
+    window.addEventListener('mousemove', (e) => {
+        handleInput(e.clientX);
+    });
+
+    window.addEventListener('touchmove', (e) => {
+        e.preventDefault(); // 阻止默认滚动
+        handleInput(e.touches[0].clientX);
+    }, { passive: false });
+
+    startBtn.addEventListener('click', () => {
+        initGame();
+    });
+
+    // 初始绘制一帧用于展示背景
+    draw();
+
+</script>
+</body>
+</html>
