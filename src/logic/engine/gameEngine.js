@@ -9,10 +9,6 @@ function clampPlayerZ(config, value) {
   return Math.max(config.playerMinZ, Math.min(config.playerMaxZ, value));
 }
 
-function clampPlayerY(config, value) {
-  return Math.max(config.playerMinY, Math.min(config.playerMaxY, value));
-}
-
 function spawnParticles(state, config, random, options) {
   const { owner, x, y, z, now, count, color, spread = 1 } = options;
 
@@ -60,12 +56,12 @@ export function createGameEngine(config, random = Math.random) {
 
   const resetBall = (serveToPlayer) => {
     state.ball.x = 0;
-    state.ball.y = 1;
+    state.ball.y = config.serveStartY;
     state.ball.z = 0.5;
     state.ball.trail = [];
     state.ball.vz = config.baseSpeedZ * (serveToPlayer ? -1 : 1);
-    state.ball.vy = 0;
-    state.ball.vx = (random() - 0.5) * 1.5;
+    state.ball.vy = config.serveDropVelocityY;
+    state.ball.vx = (random() - 0.5) * config.serveSpreadX;
   };
 
   const score = (playerScored, now) => {
@@ -106,7 +102,7 @@ export function createGameEngine(config, random = Math.random) {
     const paddleY = isEnemy ? state.enemy.y : state.player.y;
 
     ball.vz *= -config.speedMultiplier;
-    ball.vy = 1.2 + random() * 0.4;
+    ball.vy = config.returnLiftVelocityY + random() * 0.18;
     ball.vx = (ball.x - paddleX) * 3.5;
     state.hitEffect = {
       owner,
@@ -190,12 +186,6 @@ export function createGameEngine(config, random = Math.random) {
         },
       };
     },
-    setPointerHeight(normalizedHeight) {
-      state.player.y = clampPlayerY(
-        config,
-        config.playerMinY + normalizedHeight * (config.playerMaxY - config.playerMinY),
-      );
-    },
     setControlState(control, pressed) {
       if (!(control in state.controls)) {
         return;
@@ -225,7 +215,7 @@ export function createGameEngine(config, random = Math.random) {
       state.particles = [];
       state.message = null;
       state.shake = null;
-      resetBall(false);
+      resetBall(true);
     },
     update(dt, now) {
       if (state.status !== 'playing') {
@@ -234,14 +224,12 @@ export function createGameEngine(config, random = Math.random) {
 
       const horizontalIntent = (state.controls.right ? 1 : 0) - (state.controls.left ? 1 : 0);
       const depthIntent = (state.controls.forward ? 1 : 0) - (state.controls.backward ? 1 : 0);
-      const liftIntent = (state.controls.raise ? 1 : 0) - (state.controls.lower ? 1 : 0);
 
       state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
       state.player.x = clampPaddleX(config, state.player.x);
       state.player.z += depthIntent * config.playerDepthMoveSpeed * dt;
       state.player.z = clampPlayerZ(config, state.player.z);
-      state.player.y += liftIntent * config.playerLiftMoveSpeed * dt;
-      state.player.y = clampPlayerY(config, state.player.y);
+      state.player.y = config.playerY;
 
       const ball = state.ball;
       const previousZ = ball.z;
@@ -295,9 +283,13 @@ export function createGameEngine(config, random = Math.random) {
         ball.x = ball.x < -1 ? -1 : 1;
       }
 
-      if (ball.vz < 0 && previousZ >= state.player.z && ball.z <= state.player.z) {
-        const horizontalHit = Math.abs(ball.x - state.player.x) < config.paddleRadius;
-        const verticalHit = Math.abs(ball.y - state.player.y) < config.paddleVerticalTolerance;
+      const playerDepthAligned = ball.vz < 0
+        && previousZ >= state.player.z - config.paddleHitTolerance
+        && ball.z <= state.player.z + config.paddleHitTolerance;
+
+      if (playerDepthAligned) {
+        const horizontalHit = Math.abs(ball.x - state.player.x) < (config.paddleRadius + config.paddleHitTolerance);
+        const verticalHit = ball.y <= state.player.y + config.paddleVerticalTolerance;
 
         if (horizontalHit && verticalHit) {
           hitBall(state.player.x, state.player.z, now);

@@ -6,7 +6,7 @@ import { createGameScreen } from './view/screens/gameScreen.js';
 
 const START_COPY = {
   title: 'NEON PONG 3D',
-  subtitle: 'Use the arrow keys for left, right, and depth. Use W and S to raise or lower the racket for cleaner contact.',
+  subtitle: 'Use WASD or the arrow keys for left, right, and depth. On mobile, swipe in the direction you want to move.',
   button: 'Start Game',
 };
 
@@ -70,15 +70,7 @@ export function createApp(root) {
     screen.button.textContent = START_COPY.button;
   };
 
-  const updatePointerHeight = (clientY) => {
-    const rect = screen.canvas.getBoundingClientRect();
-    const relativeY = clientY - rect.top;
-    const normalizedHeight = 1 - Math.min(Math.max(relativeY / rect.height, 0), 1);
-    engine.setPointerHeight(normalizedHeight);
-  };
-
   const cleanupInput = bindInputControls(window, {
-    onPointerMove: updatePointerHeight,
     onControlChange: (control, pressed) => {
       engine.setControlState(control, pressed);
     },
