@@ -24,6 +24,7 @@ export function createInitialState(config) {
     message: null,
     shake: null,
     lastHitBy: 'enemy',
+    pendingScore: null,
     controls: {
       left: false,
       right: false,

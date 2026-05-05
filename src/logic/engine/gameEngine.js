@@ -75,6 +75,7 @@ export function createGameEngine(config, random = Math.random) {
     state.ball.vy = config.serveDropVelocityY;
     state.ball.vx = (random() - 0.5) * config.serveSpreadX;
     state.lastHitBy = serveToPlayer ? 'enemy' : 'player';
+    state.pendingScore = null;
   };
 
   const score = (playerScored, now) => {
@@ -122,8 +123,16 @@ export function createGameEngine(config, random = Math.random) {
       color: playerScored ? config.playerColor : config.enemyColor,
       spread: 2.2,
     });
-
-    score(playerScored, now);
+    state.pendingScore = {
+      playerScored,
+      resolveAt: now + config.outOfBoundsExplosionHold,
+    };
+    state.ball.vx = 0;
+    state.ball.vy = 0;
+    state.ball.vz = 0;
+    state.flashUntil = now + config.missFlashDuration;
+    state.flashKind = playerScored ? 'positive' : 'negative';
+    applyShake(state, config, 'miss', now);
   };
 
   const hitBall = (paddleX, paddleZ, paddleVx, paddleVz, now, isEnemy = false) => {
@@ -204,6 +213,7 @@ export function createGameEngine(config, random = Math.random) {
         ...state,
         flashActive: state.flashUntil > now,
         flashKind: state.flashUntil > now ? state.flashKind : null,
+        ballVisible: !state.pendingScore,
         hitEffect,
         message,
         shake,
@@ -251,10 +261,30 @@ export function createGameEngine(config, random = Math.random) {
       state.particles = [];
       state.message = null;
       state.shake = null;
+      state.pendingScore = null;
       resetBall(true);
     },
     update(dt, now) {
       if (state.status !== 'playing') {
+        return;
+      }
+
+      if (state.pendingScore) {
+        state.particles = state.particles
+          .filter((particle) => particle.until > now)
+          .map((particle) => ({
+            ...particle,
+            x: particle.x + particle.vx * dt,
+            y: particle.y + particle.vy * dt,
+            z: particle.z + particle.vz * dt,
+            vy: particle.vy - config.gravity * 0.3 * dt,
+          }));
+
+        if (now >= state.pendingScore.resolveAt) {
+          const { playerScored } = state.pendingScore;
+          score(playerScored, now);
+        }
+
         return;
       }
 

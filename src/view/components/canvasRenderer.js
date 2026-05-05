@@ -194,7 +194,9 @@ export function createCanvasRenderer(canvas, config) {
 
     drawPaddleLine(state.enemy.x, state.enemy.y, state.enemy.z, config.enemyColor, state.enemy.hitActive);
     drawParticles(state.particles);
-    drawBall(state.ball);
+    if (state.ballVisible !== false) {
+      drawBall(state.ball);
+    }
     drawPaddleLine(state.player.x, state.player.y, state.player.z, config.playerColor, state.player.hitActive);
 
     if (state.hitEffect) {
