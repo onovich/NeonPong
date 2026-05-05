@@ -274,6 +274,19 @@ export function createGameEngine(config, random = Math.random) {
         return;
       }
 
+      const horizontalIntent = (state.controls.right ? 1 : 0) - (state.controls.left ? 1 : 0);
+      const depthIntent = (state.controls.forward ? 1 : 0) - (state.controls.backward ? 1 : 0);
+      const previousPlayerX = state.player.x;
+      const previousPlayerZ = state.player.z;
+
+      state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
+      state.player.x = clampPaddleX(config, state.player.x);
+      state.player.z += depthIntent * config.playerDepthMoveSpeed * dt;
+      state.player.z = clampPlayerZ(config, state.player.z);
+      state.player.y = config.playerY;
+      state.player.vx = (state.player.x - previousPlayerX) / Math.max(dt, 0.0001);
+      state.player.vz = (state.player.z - previousPlayerZ) / Math.max(dt, 0.0001);
+
       if (state.pendingScore) {
         state.particles = state.particles
           .filter((particle) => particle.until > now)
@@ -293,20 +306,8 @@ export function createGameEngine(config, random = Math.random) {
         return;
       }
 
-      const horizontalIntent = (state.controls.right ? 1 : 0) - (state.controls.left ? 1 : 0);
-      const depthIntent = (state.controls.forward ? 1 : 0) - (state.controls.backward ? 1 : 0);
-      const previousPlayerX = state.player.x;
-      const previousPlayerZ = state.player.z;
       const previousEnemyX = state.enemy.x;
       const previousEnemyZ = state.enemy.z;
-
-      state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
-      state.player.x = clampPaddleX(config, state.player.x);
-      state.player.z += depthIntent * config.playerDepthMoveSpeed * dt;
-      state.player.z = clampPlayerZ(config, state.player.z);
-      state.player.y = config.playerY;
-      state.player.vx = (state.player.x - previousPlayerX) / Math.max(dt, 0.0001);
-      state.player.vz = (state.player.z - previousPlayerZ) / Math.max(dt, 0.0001);
 
       const ball = state.ball;
       const previousZ = ball.z;
