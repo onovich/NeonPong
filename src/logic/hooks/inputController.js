@@ -66,7 +66,7 @@ export function bindInputControls(target, {
     const deltaX = clientX - primaryTouchStartX;
     const deltaY = clientY - primaryTouchStartY;
     const worldX = primaryAnchorX + (deltaX / Math.max(tableHalfWidth, 1)) * config.mobileDragHorizontalScale;
-    const worldZ = primaryAnchorZ + (deltaY / Math.max(tableDepthPixels, 1))
+    const worldZ = primaryAnchorZ - (deltaY / Math.max(tableDepthPixels, 1))
       * (config.playerMaxZ - config.playerMinZ)
       * config.mobileDragDepthScale;
 
