@@ -28,5 +28,9 @@ Neon Pong 3D is a retro pseudo-3D table tennis game rebuilt from the original si
 - The Vite base path is set to /NeonPong/ for repository-based Pages hosting.<br/>**Vite 的 base 路径已设置为 /NeonPong/，适配仓库子路径形式的 Pages 托管。**
 - After pushing to main, set the repository Pages source to GitHub Actions in the GitHub settings panel.<br/>**推送到 main 后，需要在 GitHub 仓库设置里把 Pages Source 切换为 GitHub Actions。**
 
+## Project Docs
+- docs/PROJECT_NOTES.md tracks current lessons learned, constraints, and follow-up TODOs.<br/>**docs/PROJECT_NOTES.md 用于记录当前经验教训、约束和后续待办。**
+- docs/HANDOFF.md is the current handoff document for the next engineer or agent taking over the project.<br/>**docs/HANDOFF.md 是提供给下一位接手工程师或 agent 的当前交接文档。**
+
 ## Origin
 - The untouched source prototype and the original handoff document remain in the origin directory for reference and rollback comparison.<br/>**未改动的原始原型和交接设计文档仍保留在 origin 目录中，便于对照和必要时回填。**
