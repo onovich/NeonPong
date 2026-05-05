@@ -6,7 +6,7 @@ import { createGameScreen } from './view/screens/gameScreen.js';
 
 const START_COPY = {
   title: 'NEON PONG 3D',
-  subtitle: 'Use WASD or the arrow keys for left, right, and depth. On mobile, swipe in the direction you want to move.',
+  subtitle: 'Use WASD or the arrow keys for left, right, and depth. On mobile, drag to steer the paddle directly.',
   button: 'Start Game',
 };
 
@@ -73,6 +73,9 @@ export function createApp(root) {
   const cleanupInput = bindInputControls(window, {
     onControlChange: (control, pressed) => {
       engine.setControlState(control, pressed);
+    },
+    onMoveInput: (horizontal, depth) => {
+      engine.setMoveInput(horizontal, depth);
     },
   });
 

@@ -16,33 +16,53 @@ function clearDirectionalControls(onControlChange) {
   onControlChange('backward', false);
 }
 
-export function bindInputControls(target, { onControlChange }) {
-  let touchStartX = 0;
-  let touchStartY = 0;
+export function bindInputControls(target, { onControlChange, onMoveInput }) {
+  let touchAnchorX = 0;
+  let touchAnchorY = 0;
   let touchActive = false;
-  const touchThreshold = 18;
+  const touchDeadZone = 12;
+  const touchRadius = 70;
+
+  const emitTouchVector = (horizontal, depth) => {
+    if (onMoveInput) {
+      onMoveInput(horizontal, depth);
+    }
+  };
+
+  const resetTouchInput = () => {
+    emitTouchVector(0, 0);
+    clearDirectionalControls(onControlChange);
+  };
 
   const applyTouchDirection = (deltaX, deltaY) => {
-    const horizontal = Math.abs(deltaX) > touchThreshold ? (deltaX > 0 ? 'right' : 'left') : null;
-    const vertical = Math.abs(deltaY) > touchThreshold ? (deltaY > 0 ? 'backward' : 'forward') : null;
+    const rawHorizontal = Math.abs(deltaX) > touchDeadZone ? deltaX / touchRadius : 0;
+    const rawDepth = Math.abs(deltaY) > touchDeadZone ? deltaY / touchRadius : 0;
+    const horizontal = Math.max(-1, Math.min(1, rawHorizontal));
+    const depth = Math.max(-1, Math.min(1, rawDepth));
+
+    emitTouchVector(horizontal, depth);
 
     clearDirectionalControls(onControlChange);
 
-    if (horizontal) {
-      onControlChange(horizontal, true);
+    if (horizontal < -0.2) {
+      onControlChange('left', true);
+    } else if (horizontal > 0.2) {
+      onControlChange('right', true);
     }
 
-    if (vertical) {
-      onControlChange(vertical, true);
+    if (depth < -0.2) {
+      onControlChange('forward', true);
+    } else if (depth > 0.2) {
+      onControlChange('backward', true);
     }
   };
 
   const handleTouchStart = (event) => {
     const touch = event.touches[0];
-    touchStartX = touch.clientX;
-    touchStartY = touch.clientY;
+    touchAnchorX = touch.clientX;
+    touchAnchorY = touch.clientY;
     touchActive = true;
-    clearDirectionalControls(onControlChange);
+    resetTouchInput();
   };
 
   const handleTouchMove = (event) => {
@@ -53,12 +73,12 @@ export function bindInputControls(target, { onControlChange }) {
     }
 
     const touch = event.touches[0];
-    applyTouchDirection(touch.clientX - touchStartX, touch.clientY - touchStartY);
+    applyTouchDirection(touch.clientX - touchAnchorX, touch.clientY - touchAnchorY);
   };
 
   const handleTouchEnd = () => {
     touchActive = false;
-    clearDirectionalControls(onControlChange);
+    resetTouchInput();
   };
 
   const updateControl = (event, pressed) => {

@@ -61,6 +61,10 @@ function setMessage(state, config, text, tone, now) {
 
 export function createGameEngine(config, random = Math.random) {
   const state = createInitialState(config);
+  const moveInput = {
+    horizontal: 0,
+    depth: 0,
+  };
 
   const isOverTable = (x, z) => x >= -1 && x <= 1 && z >= 0 && z <= 1;
 
@@ -240,6 +244,10 @@ export function createGameEngine(config, random = Math.random) {
 
       state.controls[control] = pressed;
     },
+    setMoveInput(horizontal, depth) {
+      moveInput.horizontal = Math.max(-1, Math.min(1, horizontal));
+      moveInput.depth = Math.max(-1, Math.min(1, depth));
+    },
     startMatch() {
       const fresh = createInitialState(config);
       state.status = 'playing';
@@ -274,8 +282,10 @@ export function createGameEngine(config, random = Math.random) {
         return;
       }
 
-      const horizontalIntent = (state.controls.right ? 1 : 0) - (state.controls.left ? 1 : 0);
-      const depthIntent = (state.controls.forward ? 1 : 0) - (state.controls.backward ? 1 : 0);
+      const keyboardHorizontalIntent = (state.controls.right ? 1 : 0) - (state.controls.left ? 1 : 0);
+      const keyboardDepthIntent = (state.controls.forward ? 1 : 0) - (state.controls.backward ? 1 : 0);
+      const horizontalIntent = Math.abs(moveInput.horizontal) > 0.001 ? moveInput.horizontal : keyboardHorizontalIntent;
+      const depthIntent = Math.abs(moveInput.depth) > 0.001 ? moveInput.depth : keyboardDepthIntent;
       const previousPlayerX = state.player.x;
       const previousPlayerZ = state.player.z;
 
@@ -353,32 +363,16 @@ export function createGameEngine(config, random = Math.random) {
           vy: particle.vy - config.gravity * 0.3 * dt,
         }));
 
-      const playerDepthAligned = ball.vz < 0
-        && previousZ >= state.player.z - config.paddleHitTolerance
-        && ball.z <= state.player.z + config.paddleHitTolerance;
       const playerTableCatch = canCatchAtTableSurface(ball, state.player.x, state.player.z);
 
-      if (playerDepthAligned || playerTableCatch) {
-        const horizontalHit = Math.abs(ball.x - state.player.x) <= (config.paddleWidth / 2 + config.paddleHitTolerance);
-        const verticalHit = ball.y <= state.player.y + config.paddleVerticalTolerance;
-
-        if (horizontalHit && verticalHit) {
-          hitBall(state.player.x, state.player.z, state.player.vx, state.player.vz, now);
-        }
+      if (playerTableCatch) {
+        hitBall(state.player.x, state.player.z, state.player.vx, state.player.vz, now);
       }
 
-      const enemyDepthAligned = ball.vz > 0
-        && previousZ <= state.enemy.z + config.paddleHitTolerance
-        && ball.z >= state.enemy.z - config.paddleHitTolerance;
       const enemyTableCatch = canCatchAtTableSurface(ball, state.enemy.x, state.enemy.z);
 
-      if (enemyDepthAligned || enemyTableCatch) {
-        const horizontalHit = Math.abs(ball.x - state.enemy.x) <= config.paddleWidth / 2 + config.paddleHitTolerance;
-        const verticalHit = ball.y <= state.enemy.y + config.paddleVerticalTolerance;
-
-        if (horizontalHit && verticalHit) {
-          hitBall(state.enemy.x, state.enemy.z, state.enemy.vx, state.enemy.vz, now, true);
-        }
+      if (enemyTableCatch) {
+        hitBall(state.enemy.x, state.enemy.z, state.enemy.vx, state.enemy.vz, now, true);
       }
 
       if (ball.y < 0 && isOverTable(ball.x, ball.z)) {
