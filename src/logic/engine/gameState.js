@@ -17,16 +17,24 @@ export function createInitialState(config) {
     winner: null,
     scorePlayer: 0,
     scoreEnemy: 0,
-    pointerTarget: 0,
+    pointerTarget: {
+      x: 0,
+      z: config.playerMinZ,
+    },
     flashUntil: 0,
+    hitEffect: null,
     player: {
       x: 0,
+      z: config.playerMinZ,
       w: config.paddleWidth,
+      hitUntil: 0,
     },
     enemy: {
       x: 0,
+      z: config.enemyZ,
       w: config.paddleWidth,
       targetX: 0,
+      hitUntil: 0,
     },
     ball: createBallState(),
   };

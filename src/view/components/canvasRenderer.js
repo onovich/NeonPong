@@ -37,7 +37,7 @@ export function createCanvasRenderer(canvas, config) {
     context.shadowBlur = 0;
   };
 
-  const drawPaddle = (x, z, color) => {
+  const drawPaddle = (x, z, color, hitActive = false) => {
     const leftBottom = project(x - config.paddleWidth / 2, 0, z);
     const rightBottom = project(x + config.paddleWidth / 2, 0, z);
     const leftTop = project(x - config.paddleWidth / 2, config.paddleHeight, z);
@@ -52,13 +52,29 @@ export function createCanvasRenderer(canvas, config) {
     context.fillStyle = 'rgba(0, 0, 0, 0.8)';
     context.fill();
     context.strokeStyle = color;
-    context.lineWidth = 3 * leftBottom.scale;
-    context.shadowBlur = 15;
+    context.lineWidth = (hitActive ? 5 : 3) * leftBottom.scale;
+    context.shadowBlur = hitActive ? 26 : 15;
     context.shadowColor = color;
     context.stroke();
     context.shadowBlur = 0;
-    context.fillStyle = hexToRgba(color, 0.25);
+    context.fillStyle = hexToRgba(color, hitActive ? 0.45 : 0.25);
     context.fill();
+  };
+
+  const drawHitEffect = (effect) => {
+    const projection = project(effect.x, effect.y, effect.z);
+    const radius = (config.ballRadius * 1.2 + effect.progress * config.ballRadius * 2.4) * projection.scale;
+    const alpha = Math.max(0, 0.65 - effect.progress * 0.65);
+    const color = effect.owner === 'player' ? config.playerColor : config.enemyColor;
+
+    context.beginPath();
+    context.arc(projection.sx, projection.sy, radius, 0, Math.PI * 2);
+    context.strokeStyle = hexToRgba(color, alpha);
+    context.lineWidth = Math.max(1.5, 4 * projection.scale);
+    context.shadowBlur = 18;
+    context.shadowColor = color;
+    context.stroke();
+    context.shadowBlur = 0;
   };
 
   const drawBall = (ball) => {
@@ -151,9 +167,13 @@ export function createCanvasRenderer(canvas, config) {
     context.lineTo(netTopLeft.sx, netTopLeft.sy);
     context.fill();
 
-    drawPaddle(state.enemy.x, 1, config.enemyColor);
+    drawPaddle(state.enemy.x, state.enemy.z, config.enemyColor, state.enemy.hitActive);
     drawBall(state.ball);
-    drawPaddle(state.player.x, 0, config.playerColor);
+    drawPaddle(state.player.x, state.player.z, config.playerColor, state.player.hitActive);
+
+    if (state.hitEffect) {
+      drawHitEffect(state.hitEffect);
+    }
   };
 
   resize();

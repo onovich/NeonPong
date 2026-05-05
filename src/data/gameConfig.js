@@ -18,5 +18,11 @@ export const gameConfig = {
   bounceDamping: 0.8,
   maxScore: 5,
   playerFollowSpeed: 15,
+  playerDepthFollowSpeed: 10,
+  playerMinZ: 0.02,
+  playerMaxZ: 0.3,
+  enemyZ: 1,
+  paddleHitTolerance: 0.06,
+  hitFlashDuration: 180,
   aiSpeed: 2,
 };

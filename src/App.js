@@ -6,7 +6,7 @@ import { createGameScreen } from './view/screens/gameScreen.js';
 
 const START_COPY = {
   title: 'NEON PONG 3D',
-  subtitle: 'Move your mouse or swipe to control the bottom paddle. Return the ball past the opponent to score.',
+  subtitle: 'Move or swipe in two dimensions to position the paddle. Meet the ball in depth and send it past the opponent to score.',
   button: 'Start Game',
 };
 
@@ -51,11 +51,13 @@ export function createApp(root) {
     screen.button.textContent = START_COPY.button;
   };
 
-  const updatePointer = (clientX) => {
+  const updatePointer = (clientX, clientY) => {
     const rect = screen.canvas.getBoundingClientRect();
     const relativeX = clientX - rect.left;
+    const relativeY = clientY - rect.top;
     const normalized = (relativeX / rect.width) * 2 - 1;
-    engine.setPointerTarget(normalized);
+    const normalizedDepth = 1 - Math.min(Math.max(relativeY / rect.height, 0), 1);
+    engine.setPointerTarget(normalized, normalizedDepth);
   };
 
   const cleanupInput = bindInputControls(window, {
