@@ -346,8 +346,8 @@ export function createGameEngine(config, random = Math.random) {
         ball.y = 0;
         if (ball.vy < 0) {
           ball.vy = -ball.vy * config.bounceDamping;
-          if (ball.vy < 0.2) {
-            ball.vy = 0;
+          if (ball.vy < config.minBounceVelocity) {
+            ball.vy = config.minBounceVelocity;
           }
         }
       }
