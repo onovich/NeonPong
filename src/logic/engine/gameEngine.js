@@ -13,12 +13,6 @@ function clampBallSpeed(config, speed) {
   return Math.max(config.minBallSpeed, Math.min(config.maxBallSpeed, speed));
 }
 
-function distanceOutsideTable(x, z) {
-  const dx = x < -1 ? -1 - x : x > 1 ? x - 1 : 0;
-  const dz = z < 0 ? -z : z > 1 ? z - 1 : 0;
-  return Math.hypot(dx, dz);
-}
-
 function spawnParticles(state, config, random, options) {
   const { owner, x, y, z, now, count, color, spread = 1 } = options;
 
@@ -189,12 +183,8 @@ export function createGameEngine(config, random = Math.random) {
       return false;
     }
 
-    if (distanceOutsideTable(ball.x, ball.z) >= config.outOfBoundsExplosionDistance) {
-      explodeOutOfBounds(now);
-      return true;
-    }
-
-    return false;
+    explodeOutOfBounds(now);
+    return true;
   };
 
   return {
