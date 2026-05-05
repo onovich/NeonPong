@@ -58,6 +58,8 @@ function setMessage(state, config, text, tone, now) {
 export function createGameEngine(config, random = Math.random) {
   const state = createInitialState(config);
 
+  const isOverTable = (x, z) => x >= -1 && x <= 1 && z >= 0 && z <= 1;
+
   const resetBall = (serveToPlayer) => {
     state.ball.x = 0;
     state.ball.y = config.serveStartY;
@@ -66,6 +68,7 @@ export function createGameEngine(config, random = Math.random) {
     state.ball.vz = config.baseSpeedZ * (serveToPlayer ? -1 : 1);
     state.ball.vy = config.serveDropVelocityY;
     state.ball.vx = (random() - 0.5) * config.serveSpreadX;
+    state.lastHitBy = serveToPlayer ? 'enemy' : 'player';
   };
 
   const score = (playerScored, now) => {
@@ -121,6 +124,7 @@ export function createGameEngine(config, random = Math.random) {
       z: paddleZ,
       until: now + config.hitFlashDuration,
     };
+    state.lastHitBy = owner;
     state.flashUntil = now + 70;
     state.flashKind = owner;
     applyShake(state, config, 'hit', now);
@@ -151,6 +155,11 @@ export function createGameEngine(config, random = Math.random) {
   const handleOutOfBoundsLanding = (ball, now) => {
     if (ball.y >= 0) {
       return false;
+    }
+
+    if ((ball.x < -1 || ball.x > 1) && ball.z >= 0 && ball.z <= 1) {
+      score(state.lastHitBy === 'enemy', now);
+      return true;
     }
 
     if (ball.z < 0 && ball.vz < 0) {
@@ -292,17 +301,12 @@ export function createGameEngine(config, random = Math.random) {
 
       if (ball.y < 0) {
         ball.y = 0;
-        if (ball.vy < 0 && ball.z >= 0 && ball.z <= 1) {
+        if (ball.vy < 0 && isOverTable(ball.x, ball.z)) {
           ball.vy = -ball.vy * config.bounceDamping;
           if (ball.vy < 0.2) {
             ball.vy = 0;
           }
         }
-      }
-
-      if (ball.x < -1 || ball.x > 1) {
-        ball.vx *= -1;
-        ball.x = ball.x < -1 ? -1 : 1;
       }
 
       const playerDepthAligned = ball.vz < 0

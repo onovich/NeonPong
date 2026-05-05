@@ -23,6 +23,7 @@ export function createInitialState(config) {
     particles: [],
     message: null,
     shake: null,
+    lastHitBy: 'enemy',
     controls: {
       left: false,
       right: false,

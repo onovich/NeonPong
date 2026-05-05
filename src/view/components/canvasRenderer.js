@@ -84,19 +84,22 @@ export function createCanvasRenderer(canvas, config) {
     const onFire = planarSpeed >= config.fireSpeedThreshold;
     const coreColor = onFire ? '#ffb347' : config.ballColor;
     const auraColor = onFire ? '#ff5a1f' : config.ballColor;
+    const shadowVisible = ball.x >= -1 && ball.x <= 1 && ball.z >= 0 && ball.z <= 1;
 
-    context.beginPath();
-    context.ellipse(
-      shadow.sx,
-      shadow.baseSy,
-      config.ballRadius * shadow.scale,
-      (config.ballRadius / 3) * shadow.scale,
-      0,
-      0,
-      Math.PI * 2,
-    );
-    context.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    context.fill();
+    if (shadowVisible) {
+      context.beginPath();
+      context.ellipse(
+        shadow.sx,
+        shadow.baseSy,
+        config.ballRadius * shadow.scale,
+        (config.ballRadius / 3) * shadow.scale,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      context.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      context.fill();
+    }
 
     for (let index = 0; index < ball.trail.length; index += 1) {
       const trailPoint = ball.trail[index];
