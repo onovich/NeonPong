@@ -206,6 +206,17 @@ export function createGameEngine(config, random = Math.random) {
     return horizontalHit && depthHit;
   };
 
+  const canCatchInAir = (ball, paddleX, paddleZ, airCatchActive) => {
+    if (!airCatchActive || ball.vy >= 0 || ball.y <= 0) {
+      return false;
+    }
+
+    const horizontalHit = Math.abs(ball.x - paddleX) <= (config.paddleWidth / 2 + config.paddleHitTolerance);
+    const depthHit = Math.abs(ball.z - paddleZ) <= config.airCatchDepthTolerance;
+    const verticalHit = ball.y <= config.playerY + config.airCatchHeight;
+    return horizontalHit && depthHit && verticalHit;
+  };
+
   return {
     getState() {
       const now = performance.now();
@@ -230,6 +241,10 @@ export function createGameEngine(config, random = Math.random) {
         player: {
           ...state.player,
           hitActive: state.player.hitUntil > now,
+          airCatchActive: state.player.airCatchUntil > now,
+          airCatchProgress: state.player.airCatchUntil > now
+            ? 1 - ((state.player.airCatchUntil - now) / config.airCatchDuration)
+            : 1,
         },
         enemy: {
           ...state.enemy,
@@ -261,6 +276,8 @@ export function createGameEngine(config, random = Math.random) {
       state.player.vx = 0;
       state.player.vz = 0;
       state.player.hitUntil = 0;
+      state.player.airCatchUntil = 0;
+      state.player.jumpHeld = false;
       state.enemy.x = fresh.enemy.x;
       state.enemy.z = fresh.enemy.z;
       state.enemy.y = fresh.enemy.y;
@@ -288,6 +305,13 @@ export function createGameEngine(config, random = Math.random) {
       const depthIntent = Math.abs(moveInput.depth) > 0.001 ? moveInput.depth : keyboardDepthIntent;
       const previousPlayerX = state.player.x;
       const previousPlayerZ = state.player.z;
+
+      if (state.controls.jump && !state.player.jumpHeld) {
+        state.player.airCatchUntil = now + config.airCatchDuration;
+        state.player.jumpHeld = true;
+      } else if (!state.controls.jump) {
+        state.player.jumpHeld = false;
+      }
 
       state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
       state.player.x = clampPaddleX(config, state.player.x);
@@ -363,9 +387,10 @@ export function createGameEngine(config, random = Math.random) {
           vy: particle.vy - config.gravity * 0.3 * dt,
         }));
 
+      const playerAirCatch = canCatchInAir(ball, state.player.x, state.player.z, state.player.airCatchUntil > now);
       const playerTableCatch = canCatchAtTableSurface(ball, state.player.x, state.player.z);
 
-      if (playerTableCatch) {
+      if (playerAirCatch || playerTableCatch) {
         hitBall(state.player.x, state.player.z, state.player.vx, state.player.vz, now);
       }
 

@@ -7,6 +7,7 @@ const KEY_BINDINGS = {
   KeyW: 'forward',
   ArrowDown: 'backward',
   KeyS: 'backward',
+  Space: 'jump',
 };
 
 function clearDirectionalControls(onControlChange) {

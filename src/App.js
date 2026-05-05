@@ -6,7 +6,7 @@ import { createGameScreen } from './view/screens/gameScreen.js';
 
 const START_COPY = {
   title: 'NEON PONG 3D',
-  subtitle: 'Use WASD or the arrow keys for left, right, and depth. On mobile, drag to steer the paddle directly.',
+  subtitle: 'Use WASD or the arrow keys for movement. Tap Space to flash up an air-catch membrane. On mobile, drag to steer the paddle directly.',
   button: 'Start Game',
 };
 

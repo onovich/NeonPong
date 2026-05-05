@@ -47,6 +47,36 @@ export function createCanvasRenderer(canvas, config) {
     drawLine(left.sx, left.sy, right.sx, right.sy, '#ffffff', Math.max(1.5, thickness * 0.3), 0);
   };
 
+  const drawAirCatchMembrane = (x, y, z, color, progress) => {
+    const leftBase = project(x - config.paddleWidth / 2, y, z);
+    const rightBase = project(x + config.paddleWidth / 2, y, z);
+    const leftTop = project(x - config.paddleWidth / 2, y + config.airCatchHeight, z);
+    const rightTop = project(x + config.paddleWidth / 2, y + config.airCatchHeight, z);
+    const alpha = Math.max(0.18, 0.42 - progress * 0.22);
+    const strokeAlpha = Math.max(0.35, 0.78 - progress * 0.3);
+
+    context.beginPath();
+    context.moveTo(leftBase.sx, leftBase.sy);
+    context.lineTo(rightBase.sx, rightBase.sy);
+    context.lineTo(rightTop.sx, rightTop.sy);
+    context.lineTo(leftTop.sx, leftTop.sy);
+    context.closePath();
+
+    const membraneGradient = context.createLinearGradient(leftBase.sx, leftBase.sy, leftTop.sx, leftTop.sy);
+    membraneGradient.addColorStop(0, hexToRgba(color, alpha * 0.35));
+    membraneGradient.addColorStop(0.45, hexToRgba(color, alpha));
+    membraneGradient.addColorStop(1, hexToRgba('#ffffff', alpha * 0.55));
+    context.fillStyle = membraneGradient;
+    context.shadowBlur = 20;
+    context.shadowColor = color;
+    context.fill();
+    context.shadowBlur = 0;
+
+    drawLine(leftBase.sx, leftBase.sy, leftTop.sx, leftTop.sy, hexToRgba(color, strokeAlpha), Math.max(1.5, leftBase.scale * 3), 10);
+    drawLine(rightBase.sx, rightBase.sy, rightTop.sx, rightTop.sy, hexToRgba(color, strokeAlpha), Math.max(1.5, rightBase.scale * 3), 10);
+    drawLine(leftTop.sx, leftTop.sy, rightTop.sx, rightTop.sy, hexToRgba('#ffffff', strokeAlpha * 0.85), Math.max(1.2, leftTop.scale * 2.5), 8);
+  };
+
   const drawHitEffect = (effect) => {
     const projection = project(effect.x, effect.y, effect.z);
     const radius = (config.ballRadius * 1.2 + effect.progress * config.ballRadius * 2.4) * projection.scale;
@@ -196,6 +226,15 @@ export function createCanvasRenderer(canvas, config) {
     drawParticles(state.particles);
     if (state.ballVisible !== false) {
       drawBall(state.ball);
+    }
+    if (state.player.airCatchActive) {
+      drawAirCatchMembrane(
+        state.player.x,
+        state.player.y,
+        state.player.z,
+        config.playerColor,
+        state.player.airCatchProgress,
+      );
     }
     drawPaddleLine(state.player.x, state.player.y, state.player.z, config.playerColor, state.player.hitActive);
 

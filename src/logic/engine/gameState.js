@@ -30,6 +30,7 @@ export function createInitialState(config) {
       right: false,
       forward: false,
       backward: false,
+      jump: false,
     },
     player: {
       x: 0,
@@ -39,6 +40,8 @@ export function createInitialState(config) {
       vz: 0,
       w: config.paddleWidth,
       hitUntil: 0,
+      airCatchUntil: 0,
+      jumpHeld: false,
     },
     enemy: {
       x: 0,
