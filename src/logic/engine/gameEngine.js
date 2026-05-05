@@ -113,7 +113,7 @@ export function createGameEngine(config, random = Math.random) {
   };
 
   const explodeOutOfBounds = (now) => {
-    const playerScored = state.lastHitBy === 'enemy';
+    const playerScored = state.lastHitBy === 'player';
 
     spawnParticles(state, config, random, {
       owner: playerScored ? 'player' : 'enemy',
