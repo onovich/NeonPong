@@ -9,6 +9,10 @@ function clampPlayerZ(config, value) {
   return Math.max(config.playerMinZ, Math.min(config.playerMaxZ, value));
 }
 
+function clampBallSpeed(config, speed) {
+  return Math.max(config.minBallSpeed, Math.min(config.maxBallSpeed, speed));
+}
+
 function spawnParticles(state, config, random, options) {
   const { owner, x, y, z, now, count, color, spread = 1 } = options;
 
@@ -96,14 +100,20 @@ export function createGameEngine(config, random = Math.random) {
     resetBall(playerScored);
   };
 
-  const hitBall = (paddleX, paddleZ, now, isEnemy = false) => {
+  const hitBall = (paddleX, paddleZ, paddleVx, paddleVz, now, isEnemy = false) => {
     const ball = state.ball;
     const owner = isEnemy ? 'enemy' : 'player';
     const paddleY = isEnemy ? state.enemy.y : state.player.y;
+    const incomingSpeed = Math.hypot(ball.vx, ball.vz);
+    const paddleSpeed = Math.hypot(paddleVx, paddleVz);
+    const speedAdjustment = (paddleSpeed - config.paddleReferenceSpeed) * config.paddleSpeedInfluence;
+    const outgoingSpeed = clampBallSpeed(config, incomingSpeed * config.speedMultiplier + speedAdjustment);
+    const horizontalVelocity = (ball.x - paddleX) * 3.2 + paddleVx * config.paddleLateralInfluence;
+    const horizontalClamped = Math.max(-outgoingSpeed * 0.72, Math.min(outgoingSpeed * 0.72, horizontalVelocity));
+    const depthVelocity = Math.sqrt(Math.max(outgoingSpeed ** 2 - horizontalClamped ** 2, config.minBallSpeed ** 2 * 0.5));
 
-    ball.vz *= -config.speedMultiplier;
+    ball.vx = horizontalClamped;
     ball.vy = config.returnLiftVelocityY + random() * 0.18;
-    ball.vx = (ball.x - paddleX) * 3.5;
     state.hitEffect = {
       owner,
       x: ball.x,
@@ -128,14 +138,14 @@ export function createGameEngine(config, random = Math.random) {
       state.enemy.hitUntil = now + config.hitFlashDuration;
       setMessage(state, config, 'Opponent Return', 'warning', now);
       ball.z = config.enemyZ - 0.02;
-      ball.vz = Math.max(ball.vz, -config.baseSpeedZ * 3);
+      ball.vz = -depthVelocity;
       return;
     }
 
     state.player.hitUntil = now + config.hitFlashDuration;
     setMessage(state, config, 'Clean Return!', 'positive', now);
     ball.z = paddleZ + 0.02;
-    ball.vz = Math.min(ball.vz, config.baseSpeedZ * 3);
+    ball.vz = depthVelocity;
   };
 
   const handleOutOfBoundsLanding = (ball, now) => {
@@ -203,10 +213,14 @@ export function createGameEngine(config, random = Math.random) {
       state.player.x = fresh.player.x;
       state.player.z = fresh.player.z;
       state.player.y = fresh.player.y;
+      state.player.vx = 0;
+      state.player.vz = 0;
       state.player.hitUntil = 0;
       state.enemy.x = fresh.enemy.x;
       state.enemy.z = fresh.enemy.z;
       state.enemy.y = fresh.enemy.y;
+      state.enemy.vx = 0;
+      state.enemy.vz = 0;
       state.enemy.targetX = fresh.enemy.targetX;
       state.enemy.hitUntil = 0;
       state.flashUntil = 0;
@@ -224,12 +238,18 @@ export function createGameEngine(config, random = Math.random) {
 
       const horizontalIntent = (state.controls.right ? 1 : 0) - (state.controls.left ? 1 : 0);
       const depthIntent = (state.controls.forward ? 1 : 0) - (state.controls.backward ? 1 : 0);
+      const previousPlayerX = state.player.x;
+      const previousPlayerZ = state.player.z;
+      const previousEnemyX = state.enemy.x;
+      const previousEnemyZ = state.enemy.z;
 
       state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
       state.player.x = clampPaddleX(config, state.player.x);
       state.player.z += depthIntent * config.playerDepthMoveSpeed * dt;
       state.player.z = clampPlayerZ(config, state.player.z);
       state.player.y = config.playerY;
+      state.player.vx = (state.player.x - previousPlayerX) / Math.max(dt, 0.0001);
+      state.player.vz = (state.player.z - previousPlayerZ) / Math.max(dt, 0.0001);
 
       const ball = state.ball;
       const previousZ = ball.z;
@@ -243,6 +263,8 @@ export function createGameEngine(config, random = Math.random) {
       if (state.enemy.x > targetX) {
         state.enemy.x = Math.max(targetX, state.enemy.x - config.aiSpeed * dt);
       }
+      state.enemy.vx = (state.enemy.x - previousEnemyX) / Math.max(dt, 0.0001);
+      state.enemy.vz = (state.enemy.z - previousEnemyZ) / Math.max(dt, 0.0001);
 
       ball.trail.push({ x: ball.x, y: ball.y, z: ball.z });
       if (ball.trail.length > ball.maxTrail) {
@@ -288,17 +310,17 @@ export function createGameEngine(config, random = Math.random) {
         && ball.z <= state.player.z + config.paddleHitTolerance;
 
       if (playerDepthAligned) {
-        const horizontalHit = Math.abs(ball.x - state.player.x) < (config.paddleRadius + config.paddleHitTolerance);
+        const horizontalHit = Math.abs(ball.x - state.player.x) <= (config.paddleWidth / 2 + config.paddleHitTolerance);
         const verticalHit = ball.y <= state.player.y + config.paddleVerticalTolerance;
 
         if (horizontalHit && verticalHit) {
-          hitBall(state.player.x, state.player.z, now);
+          hitBall(state.player.x, state.player.z, state.player.vx, state.player.vz, now);
         }
       }
 
       if (ball.vz > 0 && previousZ <= state.enemy.z && ball.z >= state.enemy.z) {
-        if (Math.abs(ball.x - state.enemy.x) < config.paddleWidth / 2 + 0.1) {
-          hitBall(state.enemy.x, state.enemy.z, now, true);
+        if (Math.abs(ball.x - state.enemy.x) <= config.paddleWidth / 2 + config.paddleHitTolerance) {
+          hitBall(state.enemy.x, state.enemy.z, state.enemy.vx, state.enemy.vz, now, true);
         }
       }
     },
