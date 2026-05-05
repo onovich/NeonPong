@@ -6,7 +6,7 @@ import { createGameScreen } from './view/screens/gameScreen.js';
 
 const START_COPY = {
   title: 'NEON PONG 3D',
-  subtitle: 'Move or swipe in two dimensions to position the paddle. Meet the ball in depth and send it past the opponent to score.',
+  subtitle: 'Use WASD or arrow keys for left, right, and depth. Use the mouse vertically to lift the racket and strike through the ball.',
   button: 'Start Game',
 };
 
@@ -22,12 +22,31 @@ export function createApp(root) {
   const engine = createGameEngine(gameConfig);
   const renderer = createCanvasRenderer(screen.canvas, gameConfig);
 
+  root.tabIndex = 0;
+
   const syncUi = () => {
     const state = engine.getState();
 
     screen.scorePlayer.textContent = String(state.scorePlayer);
     screen.scoreEnemy.textContent = String(state.scoreEnemy);
-    screen.canvas.style.opacity = state.flashActive ? '0.5' : '1';
+    screen.flash.classList.toggle('hidden', !state.flashActive);
+    screen.flash.className = `flash-layer${state.flashActive ? ` ${state.flashKind ?? 'positive'}` : ' hidden'}`;
+
+    if (state.message) {
+      screen.message.textContent = state.message.text;
+      screen.message.className = `feedback-message ${state.message.tone}`;
+    } else {
+      screen.message.textContent = '';
+      screen.message.className = 'feedback-message hidden';
+    }
+
+    if (state.shake) {
+      const offsetX = (Math.random() - 0.5) * state.shake.amount;
+      const offsetY = (Math.random() - 0.5) * state.shake.amount;
+      root.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+    } else {
+      root.style.transform = 'translate(0, 0)';
+    }
 
     if (state.status === 'playing') {
       screen.overlay.classList.add('hidden');
@@ -51,17 +70,18 @@ export function createApp(root) {
     screen.button.textContent = START_COPY.button;
   };
 
-  const updatePointer = (clientX, clientY) => {
+  const updatePointerHeight = (clientY) => {
     const rect = screen.canvas.getBoundingClientRect();
-    const relativeX = clientX - rect.left;
     const relativeY = clientY - rect.top;
-    const normalized = (relativeX / rect.width) * 2 - 1;
-    const normalizedDepth = 1 - Math.min(Math.max(relativeY / rect.height, 0), 1);
-    engine.setPointerTarget(normalized, normalizedDepth);
+    const normalizedHeight = 1 - Math.min(Math.max(relativeY / rect.height, 0), 1);
+    engine.setPointerHeight(normalizedHeight);
   };
 
   const cleanupInput = bindInputControls(window, {
-    onPointerMove: updatePointer,
+    onPointerMove: updatePointerHeight,
+    onControlChange: (control, pressed) => {
+      engine.setControlState(control, pressed);
+    },
   });
 
   let lastTime = performance.now();
@@ -79,6 +99,7 @@ export function createApp(root) {
 
   screen.button.addEventListener('click', () => {
     engine.startMatch();
+    root.focus();
     lastTime = performance.now();
     syncUi();
   });

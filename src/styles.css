@@ -46,6 +46,56 @@ body {
   pointer-events: none;
 }
 
+.feedback-strip {
+  position: absolute;
+  top: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(88vw, 32rem);
+  display: flex;
+  justify-content: center;
+}
+
+.feedback-message {
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(9, 12, 21, 0.72);
+  box-shadow: 0 0 18px rgba(0, 255, 255, 0.15);
+  font-size: clamp(0.68rem, 1.5vw, 0.8rem);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.feedback-message.positive {
+  color: #00ffff;
+  box-shadow: 0 0 18px rgba(0, 255, 255, 0.3);
+}
+
+.feedback-message.warning,
+.feedback-message.negative {
+  color: #ff8aa9;
+  box-shadow: 0 0 18px rgba(255, 0, 85, 0.28);
+}
+
+.flash-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+
+.flash-layer.positive,
+.flash-layer.player {
+  background: rgba(0, 255, 255, 0.12);
+}
+
+.flash-layer.enemy,
+.flash-layer.warning,
+.flash-layer.negative {
+  background: rgba(255, 0, 85, 0.14);
+}
+
 .score-board {
   display: flex;
   justify-content: space-around;

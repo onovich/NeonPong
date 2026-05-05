@@ -9,6 +9,52 @@ function clampPlayerZ(config, value) {
   return Math.max(config.playerMinZ, Math.min(config.playerMaxZ, value));
 }
 
+function clampPlayerY(config, value) {
+  return Math.max(config.playerMinY, Math.min(config.playerMaxY, value));
+}
+
+function spawnParticles(state, config, random, options) {
+  const { owner, x, y, z, now, count, color, spread = 1 } = options;
+
+  for (let index = 0; index < count; index += 1) {
+    state.particles.push({
+      owner,
+      x,
+      y,
+      z,
+      vx: (random() - 0.5) * 1.8 * spread,
+      vy: random() * 1.5 * spread,
+      vz: (random() - 0.5) * 0.8 * spread,
+      size: 0.018 + random() * 0.025,
+      color,
+      until: now + config.particleLifetime * (0.75 + random() * 0.5),
+    });
+  }
+}
+
+function applyShake(state, config, kind, now) {
+  if (kind === 'hit') {
+    state.shake = {
+      until: now + config.hitShakeDuration,
+      power: config.hitShakePower,
+    };
+    return;
+  }
+
+  state.shake = {
+    until: now + config.missShakeDuration,
+    power: config.missShakePower,
+  };
+}
+
+function setMessage(state, config, text, tone, now) {
+  state.message = {
+    text,
+    tone,
+    until: now + config.messageDuration,
+  };
+}
+
 export function createGameEngine(config, random = Math.random) {
   const state = createInitialState(config);
 
@@ -25,11 +71,25 @@ export function createGameEngine(config, random = Math.random) {
   const score = (playerScored, now) => {
     if (playerScored) {
       state.scorePlayer += 1;
+      setMessage(state, config, 'Point Claimed', 'positive', now);
     } else {
       state.scoreEnemy += 1;
+      setMessage(state, config, 'Ball Lost', 'negative', now);
     }
 
-    state.flashUntil = now + 100;
+    state.flashUntil = now + config.missFlashDuration;
+    state.flashKind = playerScored ? 'positive' : 'negative';
+    applyShake(state, config, 'miss', now);
+    spawnParticles(state, config, random, {
+      owner: playerScored ? 'enemy' : 'player',
+      x: state.ball.x,
+      y: Math.max(state.ball.y, 0.02),
+      z: Math.min(1.05, Math.max(-0.05, state.ball.z)),
+      now,
+      count: config.missParticleCount,
+      color: playerScored ? config.playerColor : config.enemyColor,
+      spread: 1.4,
+    });
 
     if (state.scorePlayer >= config.maxScore || state.scoreEnemy >= config.maxScore) {
       state.status = 'gameover';
@@ -43,6 +103,7 @@ export function createGameEngine(config, random = Math.random) {
   const hitBall = (paddleX, paddleZ, now, isEnemy = false) => {
     const ball = state.ball;
     const owner = isEnemy ? 'enemy' : 'player';
+    const paddleY = isEnemy ? state.enemy.y : state.player.y;
 
     ball.vz *= -config.speedMultiplier;
     ball.vy = 1.2 + random() * 0.4;
@@ -50,19 +111,33 @@ export function createGameEngine(config, random = Math.random) {
     state.hitEffect = {
       owner,
       x: ball.x,
-      y: Math.max(ball.y, 0.08),
+      y: Math.max(ball.y, paddleY),
       z: paddleZ,
       until: now + config.hitFlashDuration,
     };
+    state.flashUntil = now + 70;
+    state.flashKind = owner;
+    applyShake(state, config, 'hit', now);
+    spawnParticles(state, config, random, {
+      owner,
+      x: ball.x,
+      y: Math.max(ball.y, paddleY),
+      z: paddleZ,
+      now,
+      count: config.hitParticleCount,
+      color: owner === 'player' ? config.playerColor : config.enemyColor,
+    });
 
     if (isEnemy) {
       state.enemy.hitUntil = now + config.hitFlashDuration;
+      setMessage(state, config, 'Opponent Return', 'warning', now);
       ball.z = config.enemyZ - 0.02;
       ball.vz = Math.max(ball.vz, -config.baseSpeedZ * 3);
       return;
     }
 
     state.player.hitUntil = now + config.hitFlashDuration;
+    setMessage(state, config, 'Clean Return!', 'positive', now);
     ball.z = paddleZ + 0.02;
     ball.vz = Math.min(ball.vz, config.baseSpeedZ * 3);
   };
@@ -92,11 +167,19 @@ export function createGameEngine(config, random = Math.random) {
         ...state.hitEffect,
         progress: 1 - ((state.hitEffect.until - now) / config.hitFlashDuration),
       } : null;
+      const message = state.message && state.message.until > now ? state.message : null;
+      const shake = state.shake && state.shake.until > now
+        ? { ...state.shake, amount: state.shake.power * ((state.shake.until - now) / (state.shake.power === config.hitShakePower ? config.hitShakeDuration : config.missShakeDuration)) }
+        : null;
 
       return {
         ...state,
         flashActive: state.flashUntil > now,
+        flashKind: state.flashUntil > now ? state.flashKind : null,
         hitEffect,
+        message,
+        shake,
+        particles: state.particles,
         player: {
           ...state.player,
           hitActive: state.player.hitUntil > now,
@@ -107,12 +190,18 @@ export function createGameEngine(config, random = Math.random) {
         },
       };
     },
-    setPointerTarget(normalizedX, normalizedDepth) {
-      state.pointerTarget.x = normalizedX * 1.5;
-      state.pointerTarget.z = clampPlayerZ(
+    setPointerHeight(normalizedHeight) {
+      state.player.targetY = clampPlayerY(
         config,
-        config.playerMinZ + normalizedDepth * (config.playerMaxZ - config.playerMinZ),
+        config.playerMinY + normalizedHeight * (config.playerMaxY - config.playerMinY),
       );
+    },
+    setControlState(control, pressed) {
+      if (!(control in state.controls)) {
+        return;
+      }
+
+      state.controls[control] = pressed;
     },
     startMatch() {
       const fresh = createInitialState(config);
@@ -120,17 +209,23 @@ export function createGameEngine(config, random = Math.random) {
       state.winner = null;
       state.scorePlayer = fresh.scorePlayer;
       state.scoreEnemy = fresh.scoreEnemy;
-      state.pointerTarget.x = fresh.pointerTarget.x;
-      state.pointerTarget.z = fresh.pointerTarget.z;
+      state.controls = { ...fresh.controls };
       state.player.x = fresh.player.x;
       state.player.z = fresh.player.z;
+      state.player.y = fresh.player.y;
+      state.player.targetY = fresh.player.targetY;
       state.player.hitUntil = 0;
       state.enemy.x = fresh.enemy.x;
       state.enemy.z = fresh.enemy.z;
+      state.enemy.y = fresh.enemy.y;
       state.enemy.targetX = fresh.enemy.targetX;
       state.enemy.hitUntil = 0;
       state.flashUntil = 0;
+      state.flashKind = null;
       state.hitEffect = null;
+      state.particles = [];
+      state.message = null;
+      state.shake = null;
       resetBall(false);
     },
     update(dt, now) {
@@ -138,10 +233,15 @@ export function createGameEngine(config, random = Math.random) {
         return;
       }
 
-      state.player.x += (state.pointerTarget.x - state.player.x) * config.playerFollowSpeed * dt;
+      const horizontalIntent = (state.controls.right ? 1 : 0) - (state.controls.left ? 1 : 0);
+      const depthIntent = (state.controls.forward ? 1 : 0) - (state.controls.backward ? 1 : 0);
+
+      state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
       state.player.x = clampPaddleX(config, state.player.x);
-      state.player.z += (state.pointerTarget.z - state.player.z) * config.playerDepthFollowSpeed * dt;
+      state.player.z += depthIntent * config.playerDepthMoveSpeed * dt;
       state.player.z = clampPlayerZ(config, state.player.z);
+      state.player.y += (state.player.targetY - state.player.y) * config.playerLiftFollowSpeed * dt;
+      state.player.y = clampPlayerY(config, state.player.y);
 
       const ball = state.ball;
       const previousZ = ball.z;
@@ -166,6 +266,16 @@ export function createGameEngine(config, random = Math.random) {
       ball.z += ball.vz * dt;
       ball.vy -= config.gravity * dt;
 
+      state.particles = state.particles
+        .filter((particle) => particle.until > now)
+        .map((particle) => ({
+          ...particle,
+          x: particle.x + particle.vx * dt,
+          y: particle.y + particle.vy * dt,
+          z: particle.z + particle.vz * dt,
+          vy: particle.vy - config.gravity * 0.3 * dt,
+        }));
+
       if (handleOutOfBoundsLanding(ball, now)) {
         return;
       }
@@ -186,7 +296,10 @@ export function createGameEngine(config, random = Math.random) {
       }
 
       if (ball.vz < 0 && previousZ >= state.player.z && ball.z <= state.player.z) {
-        if (Math.abs(ball.x - state.player.x) < config.paddleWidth / 2 + 0.1) {
+        const horizontalHit = Math.abs(ball.x - state.player.x) < config.paddleRadius;
+        const verticalHit = Math.abs(ball.y - state.player.y) < config.paddleVerticalTolerance;
+
+        if (horizontalHit && verticalHit) {
           hitBall(state.player.x, state.player.z, now);
         }
       }

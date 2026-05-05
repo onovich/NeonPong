@@ -37,27 +37,37 @@ export function createCanvasRenderer(canvas, config) {
     context.shadowBlur = 0;
   };
 
-  const drawPaddle = (x, z, color, hitActive = false) => {
-    const leftBottom = project(x - config.paddleWidth / 2, 0, z);
-    const rightBottom = project(x + config.paddleWidth / 2, 0, z);
-    const leftTop = project(x - config.paddleWidth / 2, config.paddleHeight, z);
-    const rightTop = project(x + config.paddleWidth / 2, config.paddleHeight, z);
+  const drawRacket = (x, y, z, color, hitActive = false) => {
+    const head = project(x, y + config.paddleHeight * 0.8, z);
+    const handleBottom = project(x, Math.max(0.01, y - config.paddleHandleLength), z + 0.018);
+    const neckLeft = project(x - config.paddleHandleWidth * 0.45, y + config.paddleHeight * 0.1, z + 0.008);
+    const neckRight = project(x + config.paddleHandleWidth * 0.45, y + config.paddleHeight * 0.1, z + 0.008);
+    const headRadiusX = config.ballRadius * head.scale * 1.65;
+    const headRadiusY = headRadiusX * 1.25;
 
     context.beginPath();
-    context.moveTo(leftBottom.sx, leftBottom.sy);
-    context.lineTo(rightBottom.sx, rightBottom.sy);
-    context.lineTo(rightTop.sx, rightTop.sy);
-    context.lineTo(leftTop.sx, leftTop.sy);
+    context.moveTo(neckLeft.sx, neckLeft.sy);
+    context.lineTo(handleBottom.sx - config.ballRadius * handleBottom.scale * 0.28, handleBottom.sy);
+    context.lineTo(handleBottom.sx + config.ballRadius * handleBottom.scale * 0.28, handleBottom.sy);
+    context.lineTo(neckRight.sx, neckRight.sy);
     context.closePath();
-    context.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    context.fillStyle = hitActive ? hexToRgba(color, 0.42) : 'rgba(16, 18, 28, 0.88)';
+    context.fill();
+
+    context.beginPath();
+    context.ellipse(head.sx, head.sy, headRadiusX, headRadiusY, 0, 0, Math.PI * 2);
+    context.fillStyle = 'rgba(8, 12, 18, 0.82)';
     context.fill();
     context.strokeStyle = color;
-    context.lineWidth = (hitActive ? 5 : 3) * leftBottom.scale;
-    context.shadowBlur = hitActive ? 26 : 15;
+    context.lineWidth = (hitActive ? 6 : 3.5) * head.scale;
+    context.shadowBlur = hitActive ? 28 : 16;
     context.shadowColor = color;
     context.stroke();
     context.shadowBlur = 0;
-    context.fillStyle = hexToRgba(color, hitActive ? 0.45 : 0.25);
+
+    context.beginPath();
+    context.ellipse(head.sx, head.sy, headRadiusX * 0.68, headRadiusY * 0.68, 0, 0, Math.PI * 2);
+    context.fillStyle = hexToRgba(color, hitActive ? 0.32 : 0.18);
     context.fill();
   };
 
@@ -75,6 +85,20 @@ export function createCanvasRenderer(canvas, config) {
     context.shadowColor = color;
     context.stroke();
     context.shadowBlur = 0;
+  };
+
+  const drawParticles = (particles) => {
+    particles.forEach((particle) => {
+      const projection = project(particle.x, Math.max(0.01, particle.y), particle.z);
+      const radius = Math.max(1.5, config.ballRadius * particle.size * projection.scale);
+      context.beginPath();
+      context.arc(projection.sx, projection.sy, radius, 0, Math.PI * 2);
+      context.fillStyle = hexToRgba(particle.color, 0.78);
+      context.shadowBlur = 10;
+      context.shadowColor = particle.color;
+      context.fill();
+      context.shadowBlur = 0;
+    });
   };
 
   const drawBall = (ball) => {
@@ -167,9 +191,10 @@ export function createCanvasRenderer(canvas, config) {
     context.lineTo(netTopLeft.sx, netTopLeft.sy);
     context.fill();
 
-    drawPaddle(state.enemy.x, state.enemy.z, config.enemyColor, state.enemy.hitActive);
+    drawRacket(state.enemy.x, state.enemy.y, state.enemy.z, config.enemyColor, state.enemy.hitActive);
+    drawParticles(state.particles);
     drawBall(state.ball);
-    drawPaddle(state.player.x, state.player.z, config.playerColor, state.player.hitActive);
+    drawRacket(state.player.x, state.player.y, state.player.z, config.playerColor, state.player.hitActive);
 
     if (state.hitEffect) {
       drawHitEffect(state.hitEffect);
