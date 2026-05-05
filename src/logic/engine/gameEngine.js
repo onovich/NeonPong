@@ -328,10 +328,6 @@ export function createGameEngine(config, random = Math.random) {
           vy: particle.vy - config.gravity * 0.3 * dt,
         }));
 
-      if (handleOutOfBoundsLanding(ball, now)) {
-        return;
-      }
-
       if (ball.y < 0 && isOverTable(ball.x, ball.z)) {
         ball.y = 0;
         if (ball.vy < 0) {
@@ -359,6 +355,10 @@ export function createGameEngine(config, random = Math.random) {
         if (Math.abs(ball.x - state.enemy.x) <= config.paddleWidth / 2 + config.paddleHitTolerance) {
           hitBall(state.enemy.x, state.enemy.z, state.enemy.vx, state.enemy.vz, now, true);
         }
+      }
+
+      if (handleOutOfBoundsLanding(ball, now)) {
+        return;
       }
     },
   };
