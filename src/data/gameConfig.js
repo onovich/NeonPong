@@ -42,6 +42,8 @@ export const gameConfig = {
   missShakeDuration: 320,
   missShakePower: 16,
   missFlashDuration: 180,
+  outOfBoundsExplosionDistance: 0.38,
+  explosionParticleCount: 28,
   particleLifetime: 420,
   hitParticleCount: 12,
   missParticleCount: 18,

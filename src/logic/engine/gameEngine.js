@@ -13,6 +13,12 @@ function clampBallSpeed(config, speed) {
   return Math.max(config.minBallSpeed, Math.min(config.maxBallSpeed, speed));
 }
 
+function distanceOutsideTable(x, z) {
+  const dx = x < -1 ? -1 - x : x > 1 ? x - 1 : 0;
+  const dz = z < 0 ? -z : z > 1 ? z - 1 : 0;
+  return Math.hypot(dx, dz);
+}
+
 function spawnParticles(state, config, random, options) {
   const { owner, x, y, z, now, count, color, spread = 1 } = options;
 
@@ -103,6 +109,23 @@ export function createGameEngine(config, random = Math.random) {
     resetBall(playerScored);
   };
 
+  const explodeOutOfBounds = (now) => {
+    const playerScored = state.lastHitBy === 'enemy';
+
+    spawnParticles(state, config, random, {
+      owner: playerScored ? 'player' : 'enemy',
+      x: state.ball.x,
+      y: Math.max(state.ball.y, 0.02),
+      z: state.ball.z,
+      now,
+      count: config.explosionParticleCount,
+      color: playerScored ? config.playerColor : config.enemyColor,
+      spread: 2.2,
+    });
+
+    score(playerScored, now);
+  };
+
   const hitBall = (paddleX, paddleZ, paddleVx, paddleVz, now, isEnemy = false) => {
     const ball = state.ball;
     const owner = isEnemy ? 'enemy' : 'player';
@@ -153,22 +176,12 @@ export function createGameEngine(config, random = Math.random) {
   };
 
   const handleOutOfBoundsLanding = (ball, now) => {
-    if (ball.y >= 0) {
+    if (isOverTable(ball.x, ball.z)) {
       return false;
     }
 
-    if ((ball.x < -1 || ball.x > 1) && ball.z >= 0 && ball.z <= 1) {
-      score(state.lastHitBy === 'enemy', now);
-      return true;
-    }
-
-    if (ball.z < 0 && ball.vz < 0) {
-      score(false, now);
-      return true;
-    }
-
-    if (ball.z > 1 && ball.vz > 0) {
-      score(true, now);
+    if (distanceOutsideTable(ball.x, ball.z) >= config.outOfBoundsExplosionDistance) {
+      explodeOutOfBounds(now);
       return true;
     }
 
@@ -299,9 +312,9 @@ export function createGameEngine(config, random = Math.random) {
         return;
       }
 
-      if (ball.y < 0) {
+      if (ball.y < 0 && isOverTable(ball.x, ball.z)) {
         ball.y = 0;
-        if (ball.vy < 0 && isOverTable(ball.x, ball.z)) {
+        if (ball.vy < 0) {
           ball.vy = -ball.vy * config.bounceDamping;
           if (ball.vy < 0.2) {
             ball.vy = 0;
