@@ -6,7 +6,7 @@ import { createGameScreen } from './view/screens/gameScreen.js';
 
 const START_COPY = {
   title: 'NEON PONG 3D',
-  subtitle: 'Use WASD or arrow keys for left, right, and depth. Use the mouse vertically to lift the racket and strike through the ball.',
+  subtitle: 'Use the arrow keys for left, right, and depth. Use W and S to raise or lower the racket for cleaner contact.',
   button: 'Start Game',
 };
 

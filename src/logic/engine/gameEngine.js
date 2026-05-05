@@ -191,7 +191,7 @@ export function createGameEngine(config, random = Math.random) {
       };
     },
     setPointerHeight(normalizedHeight) {
-      state.player.targetY = clampPlayerY(
+      state.player.y = clampPlayerY(
         config,
         config.playerMinY + normalizedHeight * (config.playerMaxY - config.playerMinY),
       );
@@ -213,7 +213,6 @@ export function createGameEngine(config, random = Math.random) {
       state.player.x = fresh.player.x;
       state.player.z = fresh.player.z;
       state.player.y = fresh.player.y;
-      state.player.targetY = fresh.player.targetY;
       state.player.hitUntil = 0;
       state.enemy.x = fresh.enemy.x;
       state.enemy.z = fresh.enemy.z;
@@ -235,12 +234,13 @@ export function createGameEngine(config, random = Math.random) {
 
       const horizontalIntent = (state.controls.right ? 1 : 0) - (state.controls.left ? 1 : 0);
       const depthIntent = (state.controls.forward ? 1 : 0) - (state.controls.backward ? 1 : 0);
+      const liftIntent = (state.controls.raise ? 1 : 0) - (state.controls.lower ? 1 : 0);
 
       state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
       state.player.x = clampPaddleX(config, state.player.x);
       state.player.z += depthIntent * config.playerDepthMoveSpeed * dt;
       state.player.z = clampPlayerZ(config, state.player.z);
-      state.player.y += (state.player.targetY - state.player.y) * config.playerLiftFollowSpeed * dt;
+      state.player.y += liftIntent * config.playerLiftMoveSpeed * dt;
       state.player.y = clampPlayerY(config, state.player.y);
 
       const ball = state.ball;
