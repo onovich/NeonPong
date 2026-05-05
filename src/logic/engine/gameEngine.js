@@ -202,7 +202,7 @@ export function createGameEngine(config, random = Math.random) {
     }
 
     const horizontalHit = Math.abs(ball.x - paddleX) <= (config.paddleWidth / 2 + config.paddleHitTolerance);
-    const depthHit = Math.abs(ball.z - paddleZ) <= config.paddleHitTolerance;
+    const depthHit = Math.abs(ball.z - paddleZ) <= config.paddleDepthHitTolerance;
     return horizontalHit && depthHit;
   };
 

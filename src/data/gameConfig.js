@@ -37,6 +37,7 @@ export const gameConfig = {
   enemyMaxZ: 0.98,
   enemyY: 0.06,
   paddleHitTolerance: 0.12,
+  paddleDepthHitTolerance: 0.18,
   paddleVerticalTolerance: 0.32,
   hitFlashDuration: 180,
   messageDuration: 2200,
