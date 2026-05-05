@@ -32,7 +32,9 @@ export const gameConfig = {
   playerMinZ: 0.02,
   playerMaxZ: 0.3,
   playerY: 0.08,
-  enemyZ: 1,
+  enemyZ: 0.88,
+  enemyMinZ: 0.68,
+  enemyMaxZ: 0.98,
   enemyY: 0.06,
   paddleHitTolerance: 0.12,
   paddleVerticalTolerance: 0.32,
@@ -50,4 +52,5 @@ export const gameConfig = {
   missParticleCount: 18,
   returnLiftVelocityY: 0.72,
   aiSpeed: 2,
+  aiDepthSpeed: 0.9,
 };

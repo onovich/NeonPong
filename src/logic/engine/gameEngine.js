@@ -9,6 +9,10 @@ function clampPlayerZ(config, value) {
   return Math.max(config.playerMinZ, Math.min(config.playerMaxZ, value));
 }
 
+function clampEnemyZ(config, value) {
+  return Math.max(config.enemyMinZ, Math.min(config.enemyMaxZ, value));
+}
+
 function clampBallSpeed(config, speed) {
   return Math.max(config.minBallSpeed, Math.min(config.maxBallSpeed, speed));
 }
@@ -141,6 +145,7 @@ export function createGameEngine(config, random = Math.random) {
     const horizontalClamped = Math.max(-outgoingSpeed * 0.72, Math.min(outgoingSpeed * 0.72, horizontalVelocity));
     const depthVelocity = Math.sqrt(Math.max(outgoingSpeed ** 2 - horizontalClamped ** 2, config.minBallSpeed ** 2 * 0.5));
 
+    ball.y = Math.max(ball.y, paddleY, 0.01);
     ball.vx = horizontalClamped;
     ball.vy = config.returnLiftVelocityY + random() * 0.18;
     state.hitEffect = {
@@ -167,7 +172,7 @@ export function createGameEngine(config, random = Math.random) {
     if (isEnemy) {
       state.enemy.hitUntil = now + config.hitFlashDuration;
       setMessage(state, config, 'Opponent Return', 'warning', now);
-      ball.z = config.enemyZ - 0.02;
+      ball.z = paddleZ - 0.02;
       ball.vz = -depthVelocity;
       return;
     }
@@ -185,6 +190,16 @@ export function createGameEngine(config, random = Math.random) {
 
     explodeOutOfBounds(now);
     return true;
+  };
+
+  const canCatchAtTableSurface = (ball, paddleX, paddleZ) => {
+    if (ball.y > 0 || ball.vy >= 0) {
+      return false;
+    }
+
+    const horizontalHit = Math.abs(ball.x - paddleX) <= (config.paddleWidth / 2 + config.paddleHitTolerance);
+    const depthHit = Math.abs(ball.z - paddleZ) <= config.paddleHitTolerance;
+    return horizontalHit && depthHit;
   };
 
   return {
@@ -306,6 +321,15 @@ export function createGameEngine(config, random = Math.random) {
         state.enemy.x = Math.max(targetX, state.enemy.x - config.aiSpeed * dt);
       }
       state.enemy.vx = (state.enemy.x - previousEnemyX) / Math.max(dt, 0.0001);
+      const targetZ = ball.vz > 0 ? clampEnemyZ(config, ball.z) : config.enemyZ;
+      state.enemy.targetZ = targetZ;
+
+      if (state.enemy.z < targetZ) {
+        state.enemy.z = Math.min(targetZ, state.enemy.z + config.aiDepthSpeed * dt);
+      }
+      if (state.enemy.z > targetZ) {
+        state.enemy.z = Math.max(targetZ, state.enemy.z - config.aiDepthSpeed * dt);
+      }
       state.enemy.vz = (state.enemy.z - previousEnemyZ) / Math.max(dt, 0.0001);
 
       ball.trail.push({ x: ball.x, y: ball.y, z: ball.z });
@@ -328,21 +352,12 @@ export function createGameEngine(config, random = Math.random) {
           vy: particle.vy - config.gravity * 0.3 * dt,
         }));
 
-      if (ball.y < 0 && isOverTable(ball.x, ball.z)) {
-        ball.y = 0;
-        if (ball.vy < 0) {
-          ball.vy = -ball.vy * config.bounceDamping;
-          if (ball.vy < config.minBounceVelocity) {
-            ball.vy = config.minBounceVelocity;
-          }
-        }
-      }
-
       const playerDepthAligned = ball.vz < 0
         && previousZ >= state.player.z - config.paddleHitTolerance
         && ball.z <= state.player.z + config.paddleHitTolerance;
+      const playerTableCatch = canCatchAtTableSurface(ball, state.player.x, state.player.z);
 
-      if (playerDepthAligned) {
+      if (playerDepthAligned || playerTableCatch) {
         const horizontalHit = Math.abs(ball.x - state.player.x) <= (config.paddleWidth / 2 + config.paddleHitTolerance);
         const verticalHit = ball.y <= state.player.y + config.paddleVerticalTolerance;
 
@@ -351,9 +366,27 @@ export function createGameEngine(config, random = Math.random) {
         }
       }
 
-      if (ball.vz > 0 && previousZ <= state.enemy.z && ball.z >= state.enemy.z) {
-        if (Math.abs(ball.x - state.enemy.x) <= config.paddleWidth / 2 + config.paddleHitTolerance) {
+      const enemyDepthAligned = ball.vz > 0
+        && previousZ <= state.enemy.z + config.paddleHitTolerance
+        && ball.z >= state.enemy.z - config.paddleHitTolerance;
+      const enemyTableCatch = canCatchAtTableSurface(ball, state.enemy.x, state.enemy.z);
+
+      if (enemyDepthAligned || enemyTableCatch) {
+        const horizontalHit = Math.abs(ball.x - state.enemy.x) <= config.paddleWidth / 2 + config.paddleHitTolerance;
+        const verticalHit = ball.y <= state.enemy.y + config.paddleVerticalTolerance;
+
+        if (horizontalHit && verticalHit) {
           hitBall(state.enemy.x, state.enemy.z, state.enemy.vx, state.enemy.vz, now, true);
+        }
+      }
+
+      if (ball.y < 0 && isOverTable(ball.x, ball.z)) {
+        ball.y = 0;
+        if (ball.vy < 0) {
+          ball.vy = -ball.vy * config.bounceDamping;
+          if (ball.vy < config.minBounceVelocity) {
+            ball.vy = config.minBounceVelocity;
+          }
         }
       }
 

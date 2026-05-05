@@ -48,6 +48,7 @@ export function createInitialState(config) {
       vz: 0,
       w: config.paddleWidth,
       targetX: 0,
+      targetZ: config.enemyZ,
       hitUntil: 0,
     },
     ball: createBallState(),
