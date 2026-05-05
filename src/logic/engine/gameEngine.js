@@ -65,6 +65,11 @@ export function createGameEngine(config, random = Math.random) {
     horizontal: 0,
     depth: 0,
   };
+  const pointerTarget = {
+    active: false,
+    x: 0,
+    z: config.playerMinZ,
+  };
 
   const isOverTable = (x, z) => x >= -1 && x <= 1 && z >= 0 && z <= 1;
 
@@ -263,6 +268,18 @@ export function createGameEngine(config, random = Math.random) {
       moveInput.horizontal = Math.max(-1, Math.min(1, horizontal));
       moveInput.depth = Math.max(-1, Math.min(1, depth));
     },
+    setPointerTarget(x, z) {
+      pointerTarget.active = true;
+      pointerTarget.x = clampPaddleX(config, x);
+      pointerTarget.z = clampPlayerZ(config, z);
+    },
+    clearPointerTarget() {
+      pointerTarget.active = false;
+    },
+    triggerAirCatch(now = performance.now()) {
+      state.player.airCatchUntil = now + config.airCatchDuration;
+      state.player.jumpHeld = true;
+    },
     startMatch() {
       const fresh = createInitialState(config);
       state.status = 'playing';
@@ -292,6 +309,7 @@ export function createGameEngine(config, random = Math.random) {
       state.message = null;
       state.shake = null;
       state.pendingScore = null;
+      pointerTarget.active = false;
       resetBall(true);
     },
     update(dt, now) {
@@ -313,10 +331,15 @@ export function createGameEngine(config, random = Math.random) {
         state.player.jumpHeld = false;
       }
 
-      state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
-      state.player.x = clampPaddleX(config, state.player.x);
-      state.player.z += depthIntent * config.playerDepthMoveSpeed * dt;
-      state.player.z = clampPlayerZ(config, state.player.z);
+      if (pointerTarget.active) {
+        state.player.x = clampPaddleX(config, pointerTarget.x);
+        state.player.z = clampPlayerZ(config, pointerTarget.z);
+      } else {
+        state.player.x += horizontalIntent * config.playerMoveSpeed * dt;
+        state.player.x = clampPaddleX(config, state.player.x);
+        state.player.z += depthIntent * config.playerDepthMoveSpeed * dt;
+        state.player.z = clampPlayerZ(config, state.player.z);
+      }
       state.player.y = config.playerY;
       state.player.vx = (state.player.x - previousPlayerX) / Math.max(dt, 0.0001);
       state.player.vz = (state.player.z - previousPlayerZ) / Math.max(dt, 0.0001);

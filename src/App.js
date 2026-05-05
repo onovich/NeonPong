@@ -77,6 +77,16 @@ export function createApp(root) {
     onMoveInput: (horizontal, depth) => {
       engine.setMoveInput(horizontal, depth);
     },
+    onPointerTarget: (x, z) => {
+      engine.setPointerTarget(x, z);
+    },
+    onPointerRelease: () => {
+      engine.clearPointerTarget();
+    },
+    onTriggerAirCatch: () => {
+      engine.triggerAirCatch();
+    },
+    config: gameConfig,
   });
 
   let lastTime = performance.now();

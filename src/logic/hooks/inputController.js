@@ -17,12 +17,21 @@ function clearDirectionalControls(onControlChange) {
   onControlChange('backward', false);
 }
 
-export function bindInputControls(target, { onControlChange, onMoveInput }) {
-  let touchAnchorX = 0;
-  let touchAnchorY = 0;
+export function bindInputControls(target, {
+  onControlChange,
+  onMoveInput,
+  onPointerTarget,
+  onPointerRelease,
+  onTriggerAirCatch,
+  config,
+}) {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchMoved = false;
+  let touchStartTime = 0;
   let touchActive = false;
-  const touchDeadZone = 12;
-  const touchRadius = 70;
+  const tapDuration = 220;
+  const tapMoveThreshold = 14;
 
   const emitTouchVector = (horizontal, depth) => {
     if (onMoveInput) {
@@ -33,37 +42,46 @@ export function bindInputControls(target, { onControlChange, onMoveInput }) {
   const resetTouchInput = () => {
     emitTouchVector(0, 0);
     clearDirectionalControls(onControlChange);
+    if (onPointerRelease) {
+      onPointerRelease();
+    }
   };
 
-  const applyTouchDirection = (deltaX, deltaY) => {
-    const rawHorizontal = Math.abs(deltaX) > touchDeadZone ? deltaX / touchRadius : 0;
-    const rawDepth = Math.abs(deltaY) > touchDeadZone ? deltaY / touchRadius : 0;
-    const horizontal = Math.max(-1, Math.min(1, rawHorizontal));
-    const depth = Math.max(-1, Math.min(1, rawDepth));
+  const mapTouchToTable = (clientX, clientY) => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const bottomY = height * config.tableYBottom;
+    const topY = height * config.tableYTop;
+    const unclampedZ = (clientY - bottomY) / (topY - bottomY);
+    const z = Math.max(config.playerMinZ, Math.min(config.playerMaxZ, unclampedZ));
+    const bottomWidth = width * config.tableWidthBottom;
+    const topWidth = width * config.tableWidthTop;
+    const currentWidth = bottomWidth + (topWidth - bottomWidth) * z;
+    const x = (clientX - width / 2) / (currentWidth / 2);
 
-    emitTouchVector(horizontal, depth);
+    return {
+      x,
+      z,
+    };
+  };
 
+  const applyTouchPosition = (clientX, clientY) => {
+    const tablePoint = mapTouchToTable(clientX, clientY);
+    emitTouchVector(0, 0);
     clearDirectionalControls(onControlChange);
-
-    if (horizontal < -0.2) {
-      onControlChange('left', true);
-    } else if (horizontal > 0.2) {
-      onControlChange('right', true);
-    }
-
-    if (depth < -0.2) {
-      onControlChange('forward', true);
-    } else if (depth > 0.2) {
-      onControlChange('backward', true);
+    if (onPointerTarget) {
+      onPointerTarget(tablePoint.x, tablePoint.z);
     }
   };
 
   const handleTouchStart = (event) => {
     const touch = event.touches[0];
-    touchAnchorX = touch.clientX;
-    touchAnchorY = touch.clientY;
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTime = performance.now();
+    touchMoved = false;
     touchActive = true;
-    resetTouchInput();
+    applyTouchPosition(touch.clientX, touch.clientY);
   };
 
   const handleTouchMove = (event) => {
@@ -74,12 +92,20 @@ export function bindInputControls(target, { onControlChange, onMoveInput }) {
     }
 
     const touch = event.touches[0];
-    applyTouchDirection(touch.clientX - touchAnchorX, touch.clientY - touchAnchorY);
+    const distance = Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY);
+    if (distance > tapMoveThreshold) {
+      touchMoved = true;
+    }
+    applyTouchPosition(touch.clientX, touch.clientY);
   };
 
   const handleTouchEnd = () => {
+    const isTap = !touchMoved && performance.now() - touchStartTime <= tapDuration;
     touchActive = false;
     resetTouchInput();
+    if (isTap && onTriggerAirCatch) {
+      onTriggerAirCatch();
+    }
   };
 
   const updateControl = (event, pressed) => {
