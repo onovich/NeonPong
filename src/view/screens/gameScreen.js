@@ -12,7 +12,7 @@ export function createGameScreen(root) {
       <div class="flash-layer hidden"></div>
       <div class="overlay">
         <h1 class="overlay-title">NEON PONG 3D</h1>
-        <p class="overlay-subtitle">Use WASD or arrow keys for movement. Tap Space to flash up an air-catch membrane. On mobile, drag to steer the paddle directly.</p>
+        <p class="overlay-subtitle">Use WASD or arrow keys for movement. Tap Space to flash up an air-catch membrane. On mobile, drag by offset to move and tap to trigger the membrane.</p>
         <button class="overlay-button" type="button">Start Game</button>
       </div>
     </div>

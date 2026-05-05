@@ -23,13 +23,16 @@ export function bindInputControls(target, {
   onPointerTarget,
   onPointerRelease,
   onTriggerAirCatch,
+  getPlayerAnchor,
   config,
 }) {
-  let touchStartX = 0;
-  let touchStartY = 0;
-  let touchMoved = false;
-  let touchStartTime = 0;
-  let touchActive = false;
+  let primaryTouchId = null;
+  let primaryTouchStartX = 0;
+  let primaryTouchStartY = 0;
+  let primaryTouchMoved = false;
+  let primaryTouchStartTime = 0;
+  let primaryAnchorX = 0;
+  let primaryAnchorZ = config.playerMinZ;
   const tapDuration = 220;
   const tapMoveThreshold = 14;
 
@@ -47,65 +50,100 @@ export function bindInputControls(target, {
     }
   };
 
-  const mapTouchToTable = (clientX, clientY) => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const bottomY = height * config.tableYBottom;
-    const topY = height * config.tableYTop;
-    const unclampedZ = (clientY - bottomY) / (topY - bottomY);
-    const z = Math.max(config.playerMinZ, Math.min(config.playerMaxZ, unclampedZ));
-    const bottomWidth = width * config.tableWidthBottom;
-    const topWidth = width * config.tableWidthTop;
-    const currentWidth = bottomWidth + (topWidth - bottomWidth) * z;
-    const x = (clientX - width / 2) / (currentWidth / 2);
+  const getTouchById = (touchList, touchId) => {
+    for (let index = 0; index < touchList.length; index += 1) {
+      if (touchList[index].identifier === touchId) {
+        return touchList[index];
+      }
+    }
 
-    return {
-      x,
-      z,
-    };
+    return null;
   };
 
-  const applyTouchPosition = (clientX, clientY) => {
-    const tablePoint = mapTouchToTable(clientX, clientY);
+  const updatePointerFromOffset = (clientX, clientY) => {
+    const tableHalfWidth = (window.innerWidth * config.tableWidthBottom) / 2;
+    const tableDepthPixels = window.innerHeight * (config.tableYBottom - config.tableYTop);
+    const deltaX = clientX - primaryTouchStartX;
+    const deltaY = clientY - primaryTouchStartY;
+    const worldX = primaryAnchorX + (deltaX / Math.max(tableHalfWidth, 1)) * config.mobileDragHorizontalScale;
+    const worldZ = primaryAnchorZ + (deltaY / Math.max(tableDepthPixels, 1))
+      * (config.playerMaxZ - config.playerMinZ)
+      * config.mobileDragDepthScale;
+
     emitTouchVector(0, 0);
     clearDirectionalControls(onControlChange);
     if (onPointerTarget) {
-      onPointerTarget(tablePoint.x, tablePoint.z);
+      onPointerTarget(worldX, worldZ);
     }
   };
 
+  const beginPrimaryTouch = (touch) => {
+    const anchor = getPlayerAnchor ? getPlayerAnchor() : { x: 0, z: config.playerMinZ };
+    primaryTouchId = touch.identifier;
+    primaryTouchStartX = touch.clientX;
+    primaryTouchStartY = touch.clientY;
+    primaryTouchStartTime = performance.now();
+    primaryTouchMoved = false;
+    primaryAnchorX = anchor.x;
+    primaryAnchorZ = anchor.z;
+    updatePointerFromOffset(touch.clientX, touch.clientY);
+  };
+
   const handleTouchStart = (event) => {
-    const touch = event.touches[0];
-    touchStartX = touch.clientX;
-    touchStartY = touch.clientY;
-    touchStartTime = performance.now();
-    touchMoved = false;
-    touchActive = true;
-    applyTouchPosition(touch.clientX, touch.clientY);
+    for (let index = 0; index < event.changedTouches.length; index += 1) {
+      const touch = event.changedTouches[index];
+      if (primaryTouchId === null) {
+        beginPrimaryTouch(touch);
+        continue;
+      }
+
+      if (onTriggerAirCatch) {
+        onTriggerAirCatch();
+      }
+    }
   };
 
   const handleTouchMove = (event) => {
     event.preventDefault();
 
-    if (!touchActive) {
+    if (primaryTouchId === null) {
       return;
     }
 
-    const touch = event.touches[0];
-    const distance = Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY);
-    if (distance > tapMoveThreshold) {
-      touchMoved = true;
+    const touch = getTouchById(event.touches, primaryTouchId);
+    if (!touch) {
+      return;
     }
-    applyTouchPosition(touch.clientX, touch.clientY);
+
+    const distance = Math.hypot(touch.clientX - primaryTouchStartX, touch.clientY - primaryTouchStartY);
+    if (distance > tapMoveThreshold) {
+      primaryTouchMoved = true;
+    }
+    updatePointerFromOffset(touch.clientX, touch.clientY);
   };
 
-  const handleTouchEnd = () => {
-    const isTap = !touchMoved && performance.now() - touchStartTime <= tapDuration;
-    touchActive = false;
-    resetTouchInput();
+  const handleTouchEnd = (event) => {
+    if (primaryTouchId === null) {
+      return;
+    }
+
+    const primaryEnded = getTouchById(event.changedTouches, primaryTouchId);
+    if (!primaryEnded) {
+      return;
+    }
+
+    const isTap = !primaryTouchMoved && performance.now() - primaryTouchStartTime <= tapDuration;
     if (isTap && onTriggerAirCatch) {
       onTriggerAirCatch();
     }
+
+    if (event.touches.length > 0) {
+      beginPrimaryTouch(event.touches[0]);
+      return;
+    }
+
+    primaryTouchId = null;
+    resetTouchInput();
   };
 
   const updateControl = (event, pressed) => {

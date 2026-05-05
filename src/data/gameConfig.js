@@ -42,6 +42,8 @@ export const gameConfig = {
   airCatchHeight: 0.46,
   airCatchDepthTolerance: 0.12,
   airCatchDuration: 180,
+  mobileDragHorizontalScale: 1.15,
+  mobileDragDepthScale: 1.05,
   hitFlashDuration: 180,
   messageDuration: 2200,
   hitShakeDuration: 180,

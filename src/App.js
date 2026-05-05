@@ -6,7 +6,7 @@ import { createGameScreen } from './view/screens/gameScreen.js';
 
 const START_COPY = {
   title: 'NEON PONG 3D',
-  subtitle: 'Use WASD or the arrow keys for movement. Tap Space to flash up an air-catch membrane. On mobile, drag to steer the paddle directly.',
+  subtitle: 'Use WASD or the arrow keys for movement. Tap Space to flash up an air-catch membrane. On mobile, drag by offset to move and tap to trigger the membrane.',
   button: 'Start Game',
 };
 
@@ -85,6 +85,13 @@ export function createApp(root) {
     },
     onTriggerAirCatch: () => {
       engine.triggerAirCatch();
+    },
+    getPlayerAnchor: () => {
+      const state = engine.getState();
+      return {
+        x: state.player.x,
+        z: state.player.z,
+      };
     },
     config: gameConfig,
   });
